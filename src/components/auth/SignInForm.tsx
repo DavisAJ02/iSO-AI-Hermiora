@@ -2,8 +2,8 @@
 
 import { ArrowRight, Eye, EyeOff, Lock, Mail } from "lucide-react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { signInWithApple, signInWithEmail, signInWithGoogle } from "@/lib/auth/authService";
 import { safeNextPath } from "@/lib/auth/safeNextPath";
@@ -12,13 +12,9 @@ import { AuthOrDivider, AuthSocialRow } from "./AuthSocialRow";
 import { AuthTextField } from "./AuthTextField";
 import { AuthShell } from "./AuthShell";
 
-export function SignInForm() {
+export function SignInForm({ initialNext }: { initialNext: string }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const next = useMemo(
-    () => safeNextPath(searchParams.get("next")),
-    [searchParams],
-  );
+  const next = safeNextPath(initialNext);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

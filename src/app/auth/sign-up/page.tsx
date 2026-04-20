@@ -1,16 +1,17 @@
-import { Suspense } from "react";
 import { SignUpForm } from "@/components/auth/SignUpForm";
+import { safeNextPath } from "@/lib/auth/safeNextPath";
 
-export default function SignUpPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-dvh items-center justify-center bg-[var(--hermi-bg)] text-sm text-slate-500">
-          Loading…
-        </div>
-      }
-    >
-      <SignUpForm />
-    </Suspense>
-  );
+function firstParam(v: string | string[] | undefined): string | undefined {
+  if (v === undefined) return undefined;
+  return Array.isArray(v) ? v[0] : v;
+}
+
+export default async function SignUpPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string | string[] }>;
+}) {
+  const sp = await searchParams;
+  const initialNext = safeNextPath(firstParam(sp.next));
+  return <SignUpForm initialNext={initialNext} />;
 }

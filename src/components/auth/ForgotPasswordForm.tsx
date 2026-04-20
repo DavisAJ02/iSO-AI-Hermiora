@@ -2,8 +2,7 @@
 
 import { Mail } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { sendPasswordReset } from "@/lib/auth/authService";
 import { safeNextPath } from "@/lib/auth/safeNextPath";
@@ -12,12 +11,8 @@ import { cn } from "@/lib/utils";
 import { AuthShell } from "./AuthShell";
 import { AuthTextField } from "./AuthTextField";
 
-export function ForgotPasswordForm() {
-  const searchParams = useSearchParams();
-  const next = useMemo(
-    () => safeNextPath(searchParams.get("next")),
-    [searchParams],
-  );
+export function ForgotPasswordForm({ initialNext }: { initialNext: string }) {
+  const next = safeNextPath(initialNext);
 
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
