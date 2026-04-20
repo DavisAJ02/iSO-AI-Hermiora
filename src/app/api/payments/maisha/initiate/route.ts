@@ -36,6 +36,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
+  try {
+    return await handleInitiate(body);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Server error";
+    console.error("[maisha/initiate]", msg);
+    return NextResponse.json(
+      { error: msg.includes("Missing") ? msg : `Checkout failed: ${msg}` },
+      { status: 500 },
+    );
+  }
+}
+
+async function handleInitiate(body: InitiateBody): Promise<Response> {
   const planTier = normalizePaidPlan(body.plan ?? "");
   if (!planTier) {
     return NextResponse.json({ error: "Invalid plan (expected creator or pro)" }, { status: 400 });

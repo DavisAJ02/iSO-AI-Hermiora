@@ -89,12 +89,25 @@ export function CheckoutSheet() {
           amount: 0,
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        checkoutUrl?: string;
-      };
+      const raw = await res.text();
+      let data: { error?: string; checkoutUrl?: string } = {};
+      try {
+        data = JSON.parse(raw) as { error?: string; checkoutUrl?: string };
+      } catch {
+        setCheckoutError(
+          res.status === 401
+            ? "Sign in to continue checkout."
+            : `Checkout could not start (HTTP ${res.status}).`,
+        );
+        return;
+      }
       if (!res.ok) {
-        setCheckoutError(data.error ?? "Checkout could not start");
+        setCheckoutError(
+          data.error ??
+            (res.status === 401
+              ? "Sign in to continue checkout."
+              : `Checkout could not start (HTTP ${res.status}).`),
+        );
         return;
       }
       if (!data.checkoutUrl) {
