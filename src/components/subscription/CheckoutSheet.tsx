@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { useApp } from "@/context/AppProvider";
+import { getMaishaRequestAuthHeaders } from "@/lib/payments/maishaClientAuth";
 import { checkoutAmount, planPriceLabel } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
 import type { MobileOperator, PlanTier } from "@/lib/types";
@@ -69,9 +70,13 @@ export function CheckoutSheet() {
     setCheckoutError(null);
     setCheckoutLoading(true);
     try {
+      const authHeaders = await getMaishaRequestAuthHeaders();
       const res = await fetch("/api/payments/maisha/initiate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
         credentials: "same-origin",
         body: JSON.stringify({
           plan: tier,
@@ -90,9 +95,13 @@ export function CheckoutSheet() {
         }),
       });
       const raw = await res.text();
-      let data: { error?: string; checkoutUrl?: string } = {};
+      let data: { error?: string; checkoutUrl?: string; reference?: string } = {};
       try {
-        data = JSON.parse(raw) as { error?: string; checkoutUrl?: string };
+        data = JSON.parse(raw) as {
+          error?: string;
+          checkoutUrl?: string;
+          reference?: string;
+        };
       } catch {
         setCheckoutError(
           res.status === 401
@@ -110,11 +119,43 @@ export function CheckoutSheet() {
         );
         return;
       }
-      if (!data.checkoutUrl) {
-        setCheckoutError("Missing checkout URL");
+      if (!data.reference?.trim()) {
+        setCheckoutError("Missing payment reference");
         return;
       }
-      window.location.href = data.checkoutUrl;
+
+      const goRes = await fetch("/api/payments/maisha/go", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({ reference: data.reference.trim() }),
+      });
+      const goRaw = await goRes.text();
+      if (!goRes.ok) {
+        try {
+          const j = JSON.parse(goRaw) as { error?: string };
+          setCheckoutError(
+            j.error ??
+              (goRes.status === 401
+                ? "Sign in to continue checkout."
+                : `Checkout could not continue (HTTP ${goRes.status}).`),
+          );
+        } catch {
+          setCheckoutError(
+            goRes.status === 401
+              ? "Sign in to continue checkout."
+              : goRaw.slice(0, 200) || `Checkout could not continue (HTTP ${goRes.status}).`,
+          );
+        }
+        return;
+      }
+
+      document.open();
+      document.write(goRaw);
+      document.close();
     } catch {
       setCheckoutError("Network error — try again");
     } finally {

@@ -37,7 +37,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    return await handleInitiate(body);
+    return await handleInitiate(body, req);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Server error";
     console.error("[maisha/initiate]", msg);
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
   }
 }
 
-async function handleInitiate(body: InitiateBody): Promise<Response> {
+async function handleInitiate(body: InitiateBody, req: Request): Promise<Response> {
   const planTier = normalizePaidPlan(body.plan ?? "");
   if (!planTier) {
     return NextResponse.json({ error: "Invalid plan (expected creator or pro)" }, { status: 400 });
@@ -84,14 +84,22 @@ async function handleInitiate(body: InitiateBody): Promise<Response> {
     }
   }
 
-  const supabase = createClient(await cookies());
+  const auth =
+    req.headers.get("Authorization") ?? req.headers.get("authorization") ?? undefined;
+  const supabase = createClient(await cookies(), auth);
   const {
     data: { user },
     error: authErr,
   } = await supabase.auth.getUser();
 
   if (authErr || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json(
+      {
+        error:
+          "Sign in to continue checkout. If you already signed in, refresh the page and try again.",
+      },
+      { status: 401 },
+    );
   }
 
   let money;

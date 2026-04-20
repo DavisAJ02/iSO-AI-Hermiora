@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
+import { getMaishaRequestAuthHeaders } from "@/lib/payments/maishaClientAuth";
 import { cn } from "@/lib/utils";
 
 function PendingInner() {
@@ -16,8 +17,10 @@ function PendingInner() {
   useEffect(() => {
     if (!ref) return;
     const poll = async () => {
+      const authHeaders = await getMaishaRequestAuthHeaders();
       const res = await fetch(`/api/payments/maisha/status/${encodeURIComponent(ref)}`, {
         credentials: "same-origin",
+        headers: authHeaders,
       });
       if (!res.ok) return;
       const j = (await res.json()) as { payment?: { status?: string } };

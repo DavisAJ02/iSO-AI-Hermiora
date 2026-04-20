@@ -19,7 +19,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "reference is required" }, { status: 400 });
   }
 
-  const supabase = createClient(await cookies());
+  const auth =
+    req.headers.get("Authorization") ?? req.headers.get("authorization") ?? undefined;
+  const supabase = createClient(await cookies(), auth);
   const {
     data: { user },
     error: authErr,

@@ -2,28 +2,49 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { buildMaishaAutoSubmitPage } from "@/lib/payments/maishaAutoSubmitHtml";
 import { getAppBaseUrl, getMaishaGatewayConfig } from "@/lib/payments/maishaEnv";
-import { createClient } from "@/utils/supabase/server";
+import { createClient, type CookieStore } from "@/utils/supabase/server";
 
 export const runtime = "nodejs";
 
-export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const reference = url.searchParams.get("reference");
-  if (!reference) {
-    return new NextResponse("Missing reference", { status: 400 });
-  }
+type ErrorFormat = "plain" | "json";
 
-  const supabase = createClient(await cookies());
+function errResponse(format: ErrorFormat, status: number, message: string): Response {
+  if (format === "json") {
+    return NextResponse.json({ error: message }, { status });
+  }
+  return new NextResponse(message, {
+    status,
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
+  });
+}
+
+function getAuthHeader(req: Request): string | null {
+  return req.headers.get("Authorization") ?? req.headers.get("authorization");
+}
+
+async function renderMaishaGoPage(
+  cookieStore: CookieStore,
+  req: Request,
+  reference: string,
+  errorFormat: ErrorFormat,
+): Promise<Response> {
+  const supabase = createClient(cookieStore, getAuthHeader(req));
   const {
     data: { user },
     error: authErr,
   } = await supabase.auth.getUser();
 
   if (authErr || !user) {
-    return new NextResponse("Sign in required to continue checkout.", {
-      status: 401,
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-    });
+    if (errorFormat === "json") {
+      return NextResponse.json(
+        {
+          error:
+            "Sign in to continue checkout. If you already signed in, refresh the page and try again.",
+        },
+        { status: 401 },
+      );
+    }
+    return errResponse(errorFormat, 401, "Sign in required to continue checkout.");
   }
 
   const { data: pay, error } = await supabase
@@ -35,18 +56,19 @@ export async function GET(req: Request) {
     .maybeSingle();
 
   if (error || !pay) {
-    return new NextResponse("Payment not found", { status: 404 });
+    return errResponse(errorFormat, 404, "Payment not found");
   }
 
   if (pay.user_id !== user.id) {
-    return new NextResponse("Forbidden", { status: 403 });
+    return errResponse(errorFormat, 403, "Forbidden");
   }
 
   if (pay.status !== "PENDING") {
-    return new NextResponse("This checkout session is no longer pending.", {
-      status: 409,
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-    });
+    return errResponse(
+      errorFormat,
+      409,
+      "This checkout session is no longer pending.",
+    );
   }
 
   let cfg;
@@ -54,7 +76,7 @@ export async function GET(req: Request) {
     cfg = getMaishaGatewayConfig();
   } catch (e) {
     const msg = e instanceof Error ? e.message : "MaishaPay is not configured";
-    return new NextResponse(msg, { status: 500 });
+    return errResponse(errorFormat, 500, msg);
   }
 
   const devise = String(pay.currency).toUpperCase();
@@ -83,4 +105,30 @@ export async function GET(req: Request) {
     status: 200,
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
+}
+
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const reference = url.searchParams.get("reference");
+  if (!reference) {
+    return errResponse("plain", 400, "Missing reference");
+  }
+
+  return renderMaishaGoPage(await cookies(), req, reference, "plain");
+}
+
+export async function POST(req: Request) {
+  let reference: string | undefined;
+  try {
+    const body = (await req.json()) as { reference?: string };
+    reference = body.reference?.trim();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  if (!reference) {
+    return NextResponse.json({ error: "Missing reference" }, { status: 400 });
+  }
+
+  return renderMaishaGoPage(await cookies(), req, reference, "json");
 }

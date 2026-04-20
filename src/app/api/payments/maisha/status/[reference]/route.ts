@@ -5,7 +5,7 @@ import { createClient } from "@/utils/supabase/server";
 export const runtime = "nodejs";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ reference: string }> },
 ) {
   const { reference } = await ctx.params;
@@ -13,7 +13,9 @@ export async function GET(
     return NextResponse.json({ error: "Missing reference" }, { status: 400 });
   }
 
-  const supabase = createClient(await cookies());
+  const auth =
+    req.headers.get("Authorization") ?? req.headers.get("authorization") ?? undefined;
+  const supabase = createClient(await cookies(), auth);
   const {
     data: { user },
     error: authErr,
