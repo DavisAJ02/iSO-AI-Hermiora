@@ -5,12 +5,15 @@ import {
   ChevronDown,
   Crown,
   Link2,
+  LogOut,
   Settings,
   SlidersHorizontal,
   Volume2,
   Wand2,
   MessageCircle,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useCallback, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -18,11 +21,52 @@ import { ProgressBar } from "@/components/ui/ProgressBar";
 import { SectionLabel } from "@/components/ui/SectionLabel";
 import { Toggle } from "@/components/ui/Toggle";
 import { useApp } from "@/context/AppProvider";
+import { useAuth } from "@/context/AuthProvider";
+import { signOut } from "@/lib/auth/authService";
 import { VOICE_OPTIONS, VIDEO_STYLE_OPTIONS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 export function ProfileView() {
+  const router = useRouter();
+  const { user } = useAuth();
   const { profile, plan, social, toggleSocial, ui } = useApp();
+  const [signingOut, setSigningOut] = useState(false);
+
+  const displayName = useMemo(() => {
+    const meta = user?.user_metadata as Record<string, string | undefined> | undefined;
+    return (
+      meta?.full_name?.trim() ||
+      meta?.name?.trim() ||
+      user?.email?.split("@")[0] ||
+      profile.name
+    );
+  }, [user, profile.name]);
+
+  const handleLine = useMemo(() => {
+    if (user?.email) return user.email;
+    return profile.handle;
+  }, [user?.email, profile.handle]);
+
+  const initials = useMemo(() => {
+    const n = displayName.trim();
+    if (!n) return "?";
+    const parts = n.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return `${parts[0]![0]!}${parts[1]![0]!}`.toUpperCase();
+    }
+    return n.slice(0, 2).toUpperCase();
+  }, [displayName]);
+
+  const onSignOut = useCallback(async () => {
+    setSigningOut(true);
+    try {
+      await signOut();
+      router.replace("/auth/sign-in");
+      router.refresh();
+    } finally {
+      setSigningOut(false);
+    }
+  }, [router]);
   const used = plan.usedVideos;
   const cap = plan.monthlyVideoCap;
   const pct = Math.round((used / cap) * 100);
@@ -33,22 +77,34 @@ export function ProfileView() {
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">
           Profile
         </h1>
-        <button
-          type="button"
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-violet-200 bg-violet-50 text-violet-700 shadow-sm"
-          aria-label="Settings"
-        >
-          <Settings className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void onSignOut()}
+            disabled={signingOut}
+            className="flex h-10 min-w-[2.5rem] items-center justify-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+            aria-label="Sign out"
+          >
+            <LogOut className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="hidden sm:inline">{signingOut ? "…" : "Sign out"}</span>
+          </button>
+          <button
+            type="button"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-violet-200 bg-violet-50 text-violet-700 shadow-sm"
+            aria-label="Settings"
+          >
+            <Settings className="h-5 w-5" />
+          </button>
+        </div>
       </header>
 
       <Card className="flex items-center gap-3 p-4">
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-500 text-base font-semibold text-white shadow-md shadow-violet-500/30">
-          JD
+          {initials}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold text-slate-900">{profile.name}</p>
-          <p className="truncate text-sm text-slate-500">{profile.handle}</p>
+          <p className="truncate font-semibold text-slate-900">{displayName}</p>
+          <p className="truncate text-sm text-slate-500">{handleLine}</p>
           <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900 ring-1 ring-amber-200/80">
             <Crown className="h-3.5 w-3.5" />
             Free Plan
