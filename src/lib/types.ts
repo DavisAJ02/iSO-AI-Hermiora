@@ -15,7 +15,7 @@ export type PlanTier = "free" | "creator" | "pro";
 
 export type BillingPeriod = "monthly" | "yearly";
 
-export type PaymentMethod = "apple" | "mobile_money";
+export type PaymentMethod = "apple" | "mobile_money" | "card";
 
 export type MobileOperator = "mpesa" | "orange" | "airtel" | "africel" | "mtn";
 

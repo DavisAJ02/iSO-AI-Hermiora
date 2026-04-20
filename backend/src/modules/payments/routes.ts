@@ -35,7 +35,7 @@ export async function registerPaymentRoutes(app: FastifyInstance): Promise<void>
           amount: body.amount,
           currency: body.currency ?? "USD",
           provider: body.provider,
-          status: "pending",
+          status: "PENDING",
           reference,
         })
         .select("*")

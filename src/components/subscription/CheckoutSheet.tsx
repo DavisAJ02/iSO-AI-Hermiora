@@ -4,11 +4,13 @@ import {
   Apple,
   CheckCircle2,
   Circle,
+  CreditCard,
   Info,
   Smartphone,
   Wallet,
   X,
 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -33,7 +35,9 @@ const operatorMeta: {
 export function CheckoutSheet() {
   const { billing, checkout, ui } = useApp();
   const periodLabel = billing.period === "yearly" ? "Yearly" : "Monthly";
-  if (!ui.checkoutOpen) return null;
+  const [currency, setCurrency] = useState<"USD" | "CDF">("USD");
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   const tier: PlanTier =
     checkout.selectedTier === "free" ? "pro" : checkout.selectedTier;
@@ -42,10 +46,70 @@ export function CheckoutSheet() {
   const operatorLabel =
     operatorMeta.find((o) => o.id === checkout.operator)?.short ?? "M-Pesa";
 
+  const isMaisha =
+    checkout.paymentMethod === "mobile_money" || checkout.paymentMethod === "card";
+
+  const displayCharge = useMemo(() => {
+    if (currency === "USD") return `$${amount.toFixed(2)}`;
+    const r = Number(process.env.NEXT_PUBLIC_MAISHAPAY_CDF_PER_USD);
+    if (Number.isFinite(r) && r > 0) {
+      return `~${Math.round(amount * r).toLocaleString()} CDF`;
+    }
+    return "CDF (exact total on MaishaPay)";
+  }, [amount, currency]);
+
   const ctaLabel =
     checkout.paymentMethod === "apple"
       ? "Subscribe with Apple"
-      : `Pay $${amount.toFixed(2)} via ${operatorLabel}`;
+      : checkout.paymentMethod === "card"
+        ? `Pay ${displayCharge} with card`
+        : `Pay ${displayCharge} via ${operatorLabel}`;
+
+  async function handleMaishaPay() {
+    setCheckoutError(null);
+    setCheckoutLoading(true);
+    try {
+      const res = await fetch("/api/payments/maisha/initiate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          plan: tier,
+          currency,
+          method: checkout.paymentMethod === "card" ? "card" : "mobile_money",
+          operator:
+            checkout.paymentMethod === "mobile_money" ? checkout.operator : undefined,
+          phoneNumber:
+            checkout.paymentMethod === "mobile_money"
+              ? checkout.phone.trim()
+              : checkout.phone.trim() || undefined,
+          fullName: checkout.payerName.trim() || undefined,
+          email: checkout.email.trim() || undefined,
+          billingPeriod: billing.period,
+          amount: 0,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        checkoutUrl?: string;
+      };
+      if (!res.ok) {
+        setCheckoutError(data.error ?? "Checkout could not start");
+        return;
+      }
+      if (!data.checkoutUrl) {
+        setCheckoutError("Missing checkout URL");
+        return;
+      }
+      window.location.href = data.checkoutUrl;
+    } catch {
+      setCheckoutError("Network error — try again");
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }
+
+  if (!ui.checkoutOpen) return null;
 
   return (
     <div
@@ -91,6 +155,29 @@ export function CheckoutSheet() {
             </div>
           </Card>
 
+          {isMaisha && (
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-100 bg-slate-50/80 px-3 py-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Pay in
+              </span>
+              {(["USD", "CDF"] as const).map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCurrency(c)}
+                  className={cn(
+                    "rounded-full px-3 py-1 text-xs font-semibold transition",
+                    currency === c
+                      ? "bg-violet-600 text-white shadow-sm"
+                      : "bg-white text-slate-600 ring-1 ring-slate-200 hover:ring-violet-200",
+                  )}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
               Choose payment method
@@ -119,6 +206,17 @@ export function CheckoutSheet() {
                 icon={
                   <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-100 text-violet-700">
                     <Smartphone className="h-5 w-5" />
+                  </span>
+                }
+              />
+              <PaymentCard
+                title="Card"
+                description="Visa · Mastercard · MaishaPay secure hosted checkout"
+                selected={checkout.paymentMethod === "card"}
+                onSelect={() => checkout.setPaymentMethod("card")}
+                icon={
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-800">
+                    <CreditCard className="h-5 w-5" />
                   </span>
                 }
               />
@@ -175,15 +273,70 @@ export function CheckoutSheet() {
               <div className="flex gap-2 rounded-2xl bg-violet-50 px-3 py-2 text-xs text-violet-900">
                 <Info className="mt-0.5 h-4 w-4 shrink-0" />
                 <p>
-                  A USSD prompt will be sent to your phone to confirm the payment.
+                  Confirm payment on your phone when prompted. This can take a minute — keep
+                  this screen nearby.
                 </p>
               </div>
             </div>
           )}
+
+          {checkout.paymentMethod === "card" && (
+            <div className="space-y-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                Card checkout
+              </p>
+              <div className="space-y-2">
+                <Input
+                  placeholder="Full name"
+                  value={checkout.payerName}
+                  onChange={(e) => checkout.setPayerName(e.target.value)}
+                  aria-label="Full name"
+                />
+                <Input
+                  type="email"
+                  placeholder="Email"
+                  value={checkout.email}
+                  onChange={(e) => checkout.setEmail(e.target.value)}
+                  aria-label="Email"
+                />
+                <Input
+                  inputMode="tel"
+                  placeholder="Phone (optional)"
+                  value={checkout.phone}
+                  onChange={(e) => checkout.setPhone(e.target.value)}
+                  aria-label="Phone number optional"
+                />
+              </div>
+              <div className="flex gap-2 rounded-2xl bg-violet-50 px-3 py-2 text-xs text-violet-900">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>Secure payment — you&apos;ll complete card entry on MaishaPay&apos;s hosted page.</p>
+              </div>
+            </div>
+          )}
+
+          {checkoutError && (
+            <p className="rounded-2xl bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">
+              {checkoutError}
+            </p>
+          )}
+
+          <p className="text-center text-[11px] font-medium text-slate-500">
+            Secure payment · Instant activation after confirmation
+          </p>
         </div>
 
         <div className="space-y-2 border-t border-slate-100 bg-white/95 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur">
-          <Button type="button" className="w-full py-3 text-base">
+          <Button
+            type="button"
+            className="w-full py-3 text-base"
+            disabled={checkoutLoading}
+            onClick={() => {
+              if (checkout.paymentMethod === "apple") {
+                return;
+              }
+              void handleMaishaPay();
+            }}
+          >
             {checkout.paymentMethod === "apple" ? (
               <>
                 <Apple className="h-5 w-5" />
@@ -192,15 +345,24 @@ export function CheckoutSheet() {
             ) : (
               <>
                 <Wallet className="h-5 w-5" />
-                {ctaLabel}
+                {checkoutLoading ? "Starting checkout…" : ctaLabel}
               </>
             )}
           </Button>
           <button
             type="button"
-            className="w-full text-center text-xs font-medium text-slate-500 underline decoration-slate-300 underline-offset-4 hover:text-slate-800"
+            disabled={checkout.paymentMethod !== "apple"}
+            onClick={() => {
+              if (checkout.paymentMethod !== "apple") return;
+            }}
+            className={cn(
+              "w-full text-center text-xs font-medium underline decoration-slate-300 underline-offset-4",
+              checkout.paymentMethod === "apple"
+                ? "text-slate-500 hover:text-slate-800"
+                : "cursor-not-allowed text-slate-300 no-underline",
+            )}
           >
-            Restore Previous Purchases
+            Restore Previous Purchases (Apple only)
           </button>
         </div>
       </div>

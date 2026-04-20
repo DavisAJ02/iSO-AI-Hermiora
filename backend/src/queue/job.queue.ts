@@ -1,5 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { createUserSupabaseClient } from "../lib/supabase.js";
+import { generateVideoPipeline } from "../pipeline/generateVideoPipeline.js";
 
 export type GenerationJob = {
   projectId: string;
@@ -25,30 +24,16 @@ async function drainQueue(): Promise<void> {
     while (queue.length > 0) {
       const job = queue.shift();
       if (!job) break;
-      await runPipelineStub(job);
+      try {
+        await generateVideoPipeline({
+          projectId: job.projectId,
+          accessToken: job.accessToken,
+        });
+      } catch (err) {
+        console.error("[generateVideoPipeline]", job.projectId, err);
+      }
     }
   } finally {
     processing = false;
-  }
-}
-
-/** Stub: marks project generating → advances progress (replace with real pipeline). */
-async function runPipelineStub(job: GenerationJob): Promise<void> {
-  const supabase: SupabaseClient = createUserSupabaseClient(job.accessToken);
-
-  const steps = ["hook", "script", "scenes", "voice", "render"] as const;
-  for (let i = 0; i < steps.length; i++) {
-    const step = steps[i];
-    const progress = Math.round(((i + 1) / steps.length) * 100);
-    await supabase.from("generations").insert({
-      project_id: job.projectId,
-      step,
-      status: "done",
-      output: { stub: true, step },
-    });
-    await supabase
-      .from("projects")
-      .update({ progress, status: i === steps.length - 1 ? "ready" : "generating" })
-      .eq("id", job.projectId);
   }
 }

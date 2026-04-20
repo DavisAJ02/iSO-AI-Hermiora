@@ -1,6 +1,6 @@
 import type { BillingPeriod, PlanTier } from "./types";
 
-/** List price when billed monthly (source of truth) */
+/** List price when billed monthly (USD — server + UI source of truth for Maisha checkout) */
 export const CREATOR_MONTHLY = 16.99;
 export const PRO_MONTHLY = 29.99;
 
