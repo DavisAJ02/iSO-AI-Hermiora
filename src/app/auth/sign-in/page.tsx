@@ -1,4 +1,5 @@
 import { SignInForm } from "@/components/auth/SignInForm";
+import { messageForOAuthCallbackError } from "@/lib/auth/oauthCallbackMessages";
 import { safeNextPath } from "@/lib/auth/safeNextPath";
 
 function firstParam(v: string | string[] | undefined): string | undefined {
@@ -9,9 +10,10 @@ function firstParam(v: string | string[] | undefined): string | undefined {
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string | string[] }>;
+  searchParams: Promise<{ next?: string | string[]; error?: string | string[] }>;
 }) {
   const sp = await searchParams;
   const initialNext = safeNextPath(firstParam(sp.next));
-  return <SignInForm initialNext={initialNext} />;
+  const oauthBanner = messageForOAuthCallbackError(firstParam(sp.error));
+  return <SignInForm initialNext={initialNext} oauthBanner={oauthBanner} />;
 }

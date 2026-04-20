@@ -51,7 +51,13 @@ export async function signInWithGoogle(nextPath = "/"): Promise<{ error: AuthErr
   const supabase = createClient();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: authCallbackUrl(nextPath) },
+    options: {
+      redirectTo: authCallbackUrl(nextPath),
+      queryParams: {
+        access_type: "online",
+        prompt: "select_account",
+      },
+    },
   });
   if (error) return { error };
   if (typeof window !== "undefined" && data.url) {
