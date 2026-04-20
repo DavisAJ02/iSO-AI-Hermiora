@@ -1,26 +1,107 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --hermi-bg: #fafafa;
+  --hermi-surface: #ffffff;
+  --hermi-surface-elevated: #ffffff;
+  --hermi-muted: #f3f4f6;
+  --hermi-border: rgba(15, 23, 42, 0.08);
+  --hermi-border-strong: rgba(124, 58, 237, 0.35);
+  --hermi-text: #0f172a;
+  --hermi-text-secondary: #64748b;
+  --hermi-text-tertiary: #94a3b8;
+  --hermi-primary: #7c3aed;
+  --hermi-primary-soft: rgba(124, 58, 237, 0.12);
+  --hermi-accent: #ec4899;
+  --hermi-success: #22c55e;
+  --hermi-warning: #facc15;
+  --hermi-glow: 0 12px 40px rgba(124, 58, 237, 0.18);
+  --hermi-shadow-card: 0 4px 24px rgba(15, 23, 42, 0.06);
+  --hermi-shadow-float: 0 10px 40px rgba(15, 23, 42, 0.12);
+  --hermi-radius-sm: 10px;
+  --hermi-radius-md: 16px;
+  --hermi-radius-lg: 22px;
+  --hermi-radius-xl: 28px;
+  --hermi-radius-pill: 999px;
+  --font-sans-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-background: var(--hermi-bg);
+  --color-foreground: var(--hermi-text);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --shadow-hermi-card: var(--hermi-shadow-card);
+  --shadow-hermi-float: var(--hermi-shadow-float);
+  --shadow-hermi-glow: var(--hermi-glow);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--hermi-bg);
+  color: var(--hermi-text);
+  font-family: var(--font-sans-display);
+}
+
+.hermi-gradient-text {
+  background: linear-gradient(90deg, #6d28d9, #db2777);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hermi-gradient-fill {
+  background: linear-gradient(90deg, #6d28d9, #db2777);
+}
+
+.hermi-gradient-border {
+  position: relative;
+}
+
+.hermi-gradient-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(120deg, #7c3aed, #f472b6);
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+@keyframes hermi-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(124, 58, 237, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(124, 58, 237, 0);
+  }
+}
+
+.hermi-step-active {
+  animation: hermi-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes hermi-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.hermi-skeleton {
+  background: linear-gradient(
+    90deg,
+    #f1f5f9 0%,
+    #e2e8f0 50%,
+    #f1f5f9 100%
+  );
+  background-size: 200% 100%;
+  animation: hermi-shimmer 1.4s ease-in-out infinite;
 }
