@@ -1,4 +1,7 @@
+import type { Metadata } from "next";
 import { SignUpForm } from "@/components/auth/SignUpForm";
+
+export const metadata: Metadata = { title: "Sign up" };
 import { safeNextPath } from "@/lib/auth/safeNextPath";
 
 function firstParam(v: string | string[] | undefined): string | undefined {

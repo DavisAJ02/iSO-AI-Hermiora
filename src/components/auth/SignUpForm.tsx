@@ -4,7 +4,6 @@ import { Eye, EyeOff, Lock, Mail, Sparkles, User } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
-import { Button } from "@/components/ui/Button";
 import { signInWithApple, signInWithGoogle, signUpWithEmail } from "@/lib/auth/authService";
 import { safeNextPath } from "@/lib/auth/safeNextPath";
 import {
@@ -14,8 +13,10 @@ import {
   passwordsMatch,
 } from "@/lib/validation/auth";
 import { createClient } from "@/utils/supabase/client";
+import { AuthErrorBanner } from "./AuthErrorBanner";
 import { AuthOrDivider, AuthSocialRow } from "./AuthSocialRow";
 import { AuthShell } from "./AuthShell";
+import { AuthSubmitButton } from "./AuthSubmitButton";
 import { AuthTextField } from "./AuthTextField";
 
 export function SignUpForm({ initialNext }: { initialNext: string }) {
@@ -36,6 +37,7 @@ export function SignUpForm({ initialNext }: { initialNext: string }) {
   const pwOk = isValidPassword(password);
   const matchOk = passwordsMatch(password, confirm) && confirm.length > 0;
   const nameOk = fullName.trim().length >= 2;
+  const passwordMismatch = confirm.length > 0 && !passwordsMatch(password, confirm);
   const canSubmit = nameOk && emailOk && pwOk && matchOk && !busy;
 
   const onSubmit = useCallback(
@@ -100,16 +102,13 @@ export function SignUpForm({ initialNext }: { initialNext: string }) {
       title="Create your account"
       footer={
         <>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-[var(--ha-text-2)]">
             Already have an account?{" "}
-            <Link
-              href={`/auth/sign-in?next=${encodeURIComponent(next)}`}
-              className="font-semibold text-violet-700 underline-offset-4 hover:underline"
-            >
+            <Link href={`/auth/sign-in?next=${encodeURIComponent(next)}`} className="hermi-auth-link">
               Sign In
             </Link>
           </p>
-          <p className="mx-auto max-w-xs text-[11px] leading-relaxed text-slate-400">
+          <p className="mx-auto max-w-xs text-[11px] leading-relaxed text-[var(--ha-text-2)]/85">
             By continuing, you agree to our Terms of Service and Privacy Policy.
           </p>
         </>
@@ -127,10 +126,11 @@ export function SignUpForm({ initialNext }: { initialNext: string }) {
           placeholder="Full name"
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
+          invalid={fullName.length > 0 && !nameOk}
           icon={<User className="h-4 w-4" aria-hidden />}
         />
         {fullName.length > 0 && !nameOk ? (
-          <p className="text-xs font-medium text-rose-600">Use at least 2 characters.</p>
+          <p className="hermi-auth-field-hint">Use at least 2 characters.</p>
         ) : null}
 
         <AuthTextField
@@ -141,10 +141,11 @@ export function SignUpForm({ initialNext }: { initialNext: string }) {
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          invalid={email.length > 0 && !emailOk}
           icon={<Mail className="h-4 w-4" aria-hidden />}
         />
         {email.length > 0 && !emailOk ? (
-          <p className="text-xs font-medium text-rose-600">Enter a valid email address.</p>
+          <p className="hermi-auth-field-hint">Enter a valid email address.</p>
         ) : null}
 
         <AuthTextField
@@ -154,11 +155,12 @@ export function SignUpForm({ initialNext }: { initialNext: string }) {
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          invalid={password.length > 0 && !pwOk}
           icon={<Lock className="h-4 w-4" aria-hidden />}
           trailing={
             <button
               type="button"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+              className="hermi-auth-field-toggle"
               onClick={() => setShowPw((v) => !v)}
               aria-label={showPw ? "Hide password" : "Show password"}
             >
@@ -167,7 +169,7 @@ export function SignUpForm({ initialNext }: { initialNext: string }) {
           }
         />
         {password.length > 0 && !pwOk ? (
-          <p className="text-xs font-medium text-rose-600">
+          <p className="hermi-auth-field-hint">
             Password must be at least {AUTH_PASSWORD_MIN} characters.
           </p>
         ) : null}
@@ -179,11 +181,12 @@ export function SignUpForm({ initialNext }: { initialNext: string }) {
           placeholder="Confirm password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
+          invalid={passwordMismatch}
           icon={<Lock className="h-4 w-4" aria-hidden />}
           trailing={
             <button
               type="button"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+              className="hermi-auth-field-toggle"
               onClick={() => setShowPw2((v) => !v)}
               aria-label={showPw2 ? "Hide confirm password" : "Show confirm password"}
             >
@@ -191,25 +194,27 @@ export function SignUpForm({ initialNext }: { initialNext: string }) {
             </button>
           }
         />
-        {confirm.length > 0 && !matchOk ? (
-          <p className="text-xs font-medium text-rose-600">Passwords do not match.</p>
+        {passwordMismatch ? (
+          <p className="hermi-auth-field-hint">Passwords do not match.</p>
         ) : null}
 
-        {error ? (
-          <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800" role="alert">
-            {error}
-          </p>
-        ) : null}
+        {error ? <AuthErrorBanner message={error} /> : null}
         {notice ? (
-          <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900" role="status">
+          <div className="hermi-auth-notice-banner" role="status">
             {notice}
-          </p>
+          </div>
         ) : null}
 
-        <Button type="submit" className="mt-1 w-full py-3 text-base" disabled={!canSubmit}>
-          {busy ? "Creating account…" : "Create Account"}
-          {!busy ? <Sparkles className="h-4 w-4" aria-hidden /> : null}
-        </Button>
+        <AuthSubmitButton busy={busy} disabled={!canSubmit} className="mt-1">
+          {busy ? (
+            "Creating account…"
+          ) : (
+            <>
+              Create Account
+              <Sparkles className="h-4 w-4" aria-hidden />
+            </>
+          )}
+        </AuthSubmitButton>
       </form>
     </AuthShell>
   );

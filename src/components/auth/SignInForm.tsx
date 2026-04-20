@@ -4,13 +4,14 @@ import { ArrowRight, Eye, EyeOff, Lock, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/Button";
 import { signInWithApple, signInWithEmail, signInWithGoogle } from "@/lib/auth/authService";
 import { safeNextPath } from "@/lib/auth/safeNextPath";
 import { isValidEmail } from "@/lib/validation/auth";
+import { AuthErrorBanner } from "./AuthErrorBanner";
 import { AuthOrDivider, AuthSocialRow } from "./AuthSocialRow";
-import { AuthTextField } from "./AuthTextField";
 import { AuthShell } from "./AuthShell";
+import { AuthSubmitButton } from "./AuthSubmitButton";
+import { AuthTextField } from "./AuthTextField";
 
 export function SignInForm({
   initialNext,
@@ -83,16 +84,13 @@ export function SignInForm({
       title="Welcome back"
       footer={
         <>
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-[var(--ha-text-2)]">
             Don&apos;t have an account?{" "}
-            <Link
-              href={`/auth/sign-up?next=${encodeURIComponent(next)}`}
-              className="font-semibold text-violet-700 underline-offset-4 hover:underline"
-            >
+            <Link href={`/auth/sign-up?next=${encodeURIComponent(next)}`} className="hermi-auth-link">
               Sign Up
             </Link>
           </p>
-          <p className="mx-auto max-w-xs text-[11px] leading-relaxed text-slate-400">
+          <p className="mx-auto max-w-xs text-[11px] leading-relaxed text-[var(--ha-text-2)]/85">
             By continuing, you agree to our Terms of Service and Privacy Policy.
           </p>
         </>
@@ -116,7 +114,7 @@ export function SignInForm({
           icon={<Mail className="h-4 w-4" aria-hidden />}
         />
         {email.length > 0 && !emailOk ? (
-          <p id="signin-email-err" className="text-xs font-medium text-rose-600">
+          <p id="signin-email-err" className="hermi-auth-field-hint">
             Enter a valid email address.
           </p>
         ) : null}
@@ -132,7 +130,7 @@ export function SignInForm({
           trailing={
             <button
               type="button"
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+              className="hermi-auth-field-toggle"
               onClick={() => setShowPw((v) => !v)}
               aria-label={showPw ? "Hide password" : "Show password"}
             >
@@ -144,22 +142,24 @@ export function SignInForm({
         <div className="flex justify-end pt-0.5">
           <Link
             href={`/auth/forgot-password?next=${encodeURIComponent(next)}`}
-            className="text-sm font-semibold text-violet-700 hover:underline"
+            className="hermi-auth-link text-sm"
           >
             Forgot Password?
           </Link>
         </div>
 
-        {error ? (
-          <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800" role="alert">
-            {error}
-          </p>
-        ) : null}
+        {error ? <AuthErrorBanner message={error} /> : null}
 
-        <Button type="submit" className="mt-1 w-full py-3 text-base" disabled={!canSubmit}>
-          {busy ? "Signing in…" : "Sign In"}
-          {!busy ? <ArrowRight className="h-4 w-4" aria-hidden /> : null}
-        </Button>
+        <AuthSubmitButton busy={busy} disabled={!canSubmit} className="mt-1">
+          {busy ? (
+            "Signing in…"
+          ) : (
+            <>
+              Sign In
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </>
+          )}
+        </AuthSubmitButton>
       </form>
     </AuthShell>
   );

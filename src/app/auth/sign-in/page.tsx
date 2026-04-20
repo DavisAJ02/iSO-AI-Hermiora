@@ -1,4 +1,7 @@
+import type { Metadata } from "next";
 import { SignInForm } from "@/components/auth/SignInForm";
+
+export const metadata: Metadata = { title: "Sign in" };
 import { messageForOAuthCallbackError } from "@/lib/auth/oauthCallbackMessages";
 import { safeNextPath } from "@/lib/auth/safeNextPath";
 
