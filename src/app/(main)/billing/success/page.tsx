@@ -17,13 +17,22 @@ function SuccessInner() {
     let cancelled = false;
     (async () => {
       const authHeaders = await getMaishaRequestAuthHeaders();
-      const res = await fetch(`/api/payments/maisha/status/${encodeURIComponent(ref)}`, {
+      const usesNewLedger = ref.startsWith("HERMIORA_");
+      const url = usesNewLedger
+        ? `/api/payments/${encodeURIComponent(ref)}/status`
+        : `/api/payments/maisha/status/${encodeURIComponent(ref)}`;
+      const res = await fetch(url, {
         credentials: "same-origin",
         headers: authHeaders,
       });
       if (!res.ok || cancelled) return;
-      const j = (await res.json()) as { payment?: { plan?: string } };
-      if (j.payment?.plan) setPlan(j.payment.plan);
+      if (usesNewLedger) {
+        const j = (await res.json()) as { plan?: string | null };
+        if (j.plan) setPlan(j.plan);
+      } else {
+        const j = (await res.json()) as { payment?: { plan?: string } };
+        if (j.payment?.plan) setPlan(j.payment.plan);
+      }
     })();
     return () => {
       cancelled = true;

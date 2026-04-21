@@ -10,7 +10,7 @@ export async function activateSubscriptionForPayment(
 ): Promise<{ subscriptionId: string | null; skipped: boolean }> {
   const { data: pay, error: readErr } = await admin
     .from("payments")
-    .select("id, user_id, plan, billing_period, status, subscription_id")
+    .select("id, user_id, plan, billing_period, status, subscription_id, provider")
     .eq("id", paymentId)
     .maybeSingle();
 
@@ -40,7 +40,10 @@ export async function activateSubscriptionForPayment(
     .update({ status: "canceled" })
     .eq("user_id", pay.user_id)
     .eq("status", "active")
-    .eq("provider", "maisha");
+    .in("provider", ["maisha", "maishapay"]);
+
+  const provider =
+    pay.provider === "maishapay" || pay.provider === "maisha" ? pay.provider : "maisha";
 
   const { data: sub, error: insErr } = await admin
     .from("subscriptions")
@@ -50,7 +53,7 @@ export async function activateSubscriptionForPayment(
       status: "active",
       starts_at: now.toISOString(),
       expires_at: expires.toISOString(),
-      provider: "maisha",
+      provider,
     })
     .select("id")
     .single();

@@ -71,7 +71,7 @@ export function CheckoutSheet() {
     setCheckoutLoading(true);
     try {
       const authHeaders = await getMaishaRequestAuthHeaders();
-      const res = await fetch("/api/payments/maisha/initiate", {
+      const res = await fetch("/api/payments/initiate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -81,7 +81,7 @@ export function CheckoutSheet() {
         body: JSON.stringify({
           plan: tier,
           currency,
-          method: checkout.paymentMethod === "card" ? "card" : "mobile_money",
+          payment_method: checkout.paymentMethod === "card" ? "card" : "mobile_money",
           operator:
             checkout.paymentMethod === "mobile_money" ? checkout.operator : undefined,
           phoneNumber:
@@ -90,17 +90,22 @@ export function CheckoutSheet() {
               : checkout.phone.trim() || undefined,
           fullName: checkout.payerName.trim() || undefined,
           email: checkout.email.trim() || undefined,
-          billingPeriod: billing.period,
-          amount: 0,
+          billingCycle: billing.period,
         }),
       });
       const raw = await res.text();
-      let data: { error?: string; checkoutUrl?: string; reference?: string } = {};
+      let data: {
+        ok?: boolean;
+        error?: string;
+        checkoutUrl?: string;
+        txRef?: string;
+      } = {};
       try {
         data = JSON.parse(raw) as {
+          ok?: boolean;
           error?: string;
           checkoutUrl?: string;
-          reference?: string;
+          txRef?: string;
         };
       } catch {
         setCheckoutError(
@@ -110,7 +115,7 @@ export function CheckoutSheet() {
         );
         return;
       }
-      if (!res.ok) {
+      if (!res.ok || data.ok === false) {
         setCheckoutError(
           data.error ??
             (res.status === 401
@@ -119,19 +124,24 @@ export function CheckoutSheet() {
         );
         return;
       }
-      if (!data.reference?.trim()) {
+      if (!data.txRef?.trim()) {
         setCheckoutError("Missing payment reference");
         return;
       }
 
-      const goRes = await fetch("/api/payments/maisha/go", {
+      if (checkout.paymentMethod === "card" && data.checkoutUrl?.trim()) {
+        window.location.assign(data.checkoutUrl.trim());
+        return;
+      }
+
+      const goRes = await fetch("/api/payments/maishapay/go", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...authHeaders,
         },
         credentials: "same-origin",
-        body: JSON.stringify({ reference: data.reference.trim() }),
+        body: JSON.stringify({ txRef: data.txRef.trim() }),
       });
       const goRaw = await goRes.text();
       if (!goRes.ok) {

@@ -39,7 +39,8 @@ export function getMaishaGatewayConfig(): MaishaGatewayConfig {
 
 /** CDF per 1 USD — required when charging in CDF (e.g. 2850). */
 export function getCdfPerUsd(): number {
-  const raw = process.env.MAISHA_CDF_PER_USD?.trim();
+  const raw =
+    process.env.MAISHAPAY_CDF_PER_USD?.trim() || process.env.MAISHA_CDF_PER_USD?.trim();
   if (!raw) {
     throw new Error("MAISHA_CDF_PER_USD is required when currency is CDF (CDF amount per 1 USD).");
   }

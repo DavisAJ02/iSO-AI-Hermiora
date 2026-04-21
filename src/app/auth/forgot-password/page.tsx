@@ -1,7 +1,4 @@
-import type { Metadata } from "next";
 import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
-
-export const metadata: Metadata = { title: "Reset password" };
 import { safeNextPath } from "@/lib/auth/safeNextPath";
 
 function firstParam(v: string | string[] | undefined): string | undefined {

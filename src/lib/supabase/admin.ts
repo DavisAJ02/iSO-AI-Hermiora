@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
 /**
- * Service-role client for trusted server code only (webhooks, cron, migrations helpers).
+ * Service-role client for trusted server code only (MaishaPay webhooks, cron, migrations helpers).
  * Never import from Client Components or send this key to the browser.
  */
 export function createAdminSupabaseClient() {

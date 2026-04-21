@@ -3,12 +3,12 @@
 import { Mail } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useState } from "react";
+import { Button } from "@/components/ui/Button";
 import { sendPasswordReset } from "@/lib/auth/authService";
 import { safeNextPath } from "@/lib/auth/safeNextPath";
 import { isValidEmail } from "@/lib/validation/auth";
-import { AuthErrorBanner } from "./AuthErrorBanner";
+import { cn } from "@/lib/utils";
 import { AuthShell } from "./AuthShell";
-import { AuthSubmitButton } from "./AuthSubmitButton";
 import { AuthTextField } from "./AuthTextField";
 
 export function ForgotPasswordForm({ initialNext }: { initialNext: string }) {
@@ -46,14 +46,17 @@ export function ForgotPasswordForm({ initialNext }: { initialNext: string }) {
     <AuthShell
       title="Reset your password"
       footer={
-        <Link href={`/auth/sign-in?next=${encodeURIComponent(next)}`} className="hermi-auth-link text-sm">
+        <Link
+          href={`/auth/sign-in?next=${encodeURIComponent(next)}`}
+          className="text-sm font-semibold text-violet-700 hover:underline"
+        >
           Back to sign in
         </Link>
       }
     >
       {!sent ? (
         <>
-          <p className="mb-4 text-center text-sm leading-relaxed text-[var(--ha-text-2)]">
+          <p className="mb-4 text-center text-sm leading-relaxed text-slate-600">
             Enter the email associated with your account. We&apos;ll send you a link to choose a
             new password.
           </p>
@@ -66,27 +69,34 @@ export function ForgotPasswordForm({ initialNext }: { initialNext: string }) {
               placeholder="Email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              invalid={email.length > 0 && !emailOk}
               icon={<Mail className="h-4 w-4" aria-hidden />}
             />
             {email.length > 0 && !emailOk ? (
-              <p className="hermi-auth-field-hint">Enter a valid email address.</p>
+              <p className="text-xs font-medium text-rose-600">Enter a valid email address.</p>
             ) : null}
-            {error ? <AuthErrorBanner message={error} /> : null}
-            <AuthSubmitButton busy={busy} disabled={!canSubmit}>
+            {error ? (
+              <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <Button type="submit" className="w-full py-3 text-base" disabled={!canSubmit}>
               {busy ? "Sending…" : "Send Reset Link"}
-            </AuthSubmitButton>
+            </Button>
           </form>
         </>
       ) : (
         <div className="space-y-4 text-center">
-          <div className="hermi-auth-notice-banner text-left text-sm" role="status">
-            If an account exists for <span className="font-semibold text-[#d1fae5]">{email.trim()}</span>
-            , you will receive an email with reset instructions shortly.
-          </div>
+          <p className="rounded-xl bg-emerald-50 px-3 py-3 text-sm font-medium text-emerald-900" role="status">
+            If an account exists for <span className="font-semibold">{email.trim()}</span>, you
+            will receive an email with reset instructions shortly.
+          </p>
           <Link
             href={`/auth/sign-in?next=${encodeURIComponent(next)}`}
-            className="hermi-auth-btn-outline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[rgba(192,132,252,0.55)]"
+            className={cn(
+              "inline-flex w-full items-center justify-center gap-2 rounded-full border border-violet-300 bg-white px-4 py-3 text-sm font-semibold text-violet-700 shadow-sm transition",
+              "hover:border-violet-400 hover:bg-violet-50/60 active:scale-[0.98]",
+              "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600",
+            )}
           >
             Back to sign in
           </Link>

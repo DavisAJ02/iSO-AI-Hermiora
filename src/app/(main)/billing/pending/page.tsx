@@ -18,11 +18,26 @@ function PendingInner() {
     if (!ref) return;
     const poll = async () => {
       const authHeaders = await getMaishaRequestAuthHeaders();
-      const res = await fetch(`/api/payments/maisha/status/${encodeURIComponent(ref)}`, {
+      const usesNewLedger = ref.startsWith("HERMIORA_");
+      const url = usesNewLedger
+        ? `/api/payments/${encodeURIComponent(ref)}/status`
+        : `/api/payments/maisha/status/${encodeURIComponent(ref)}`;
+      const res = await fetch(url, {
         credentials: "same-origin",
         headers: authHeaders,
       });
       if (!res.ok) return;
+      if (usesNewLedger) {
+        const j = (await res.json()) as { status?: string };
+        if (j.status === "success") {
+          if (timer.current) clearInterval(timer.current);
+          router.replace(`/billing/success?ref=${encodeURIComponent(ref)}`);
+        } else if (j.status === "failed") {
+          if (timer.current) clearInterval(timer.current);
+          router.replace(`/billing/failed?ref=${encodeURIComponent(ref)}`);
+        }
+        return;
+      }
       const j = (await res.json()) as { payment?: { status?: string } };
       const st = j.payment?.status;
       if (st === "SUCCESS") {
