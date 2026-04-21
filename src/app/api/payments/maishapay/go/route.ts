@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { checkoutGateErrorPageHtml } from "@/lib/payments/checkoutGateHtml";
 import { buildMaishaAutoSubmitPage } from "@/lib/payments/maishaAutoSubmitHtml";
 import { getAppBaseUrl } from "@/lib/payments/maishaEnv";
 import { getMaishaPayGatewayConfig } from "@/lib/payments/maishapay";
@@ -7,11 +8,36 @@ import { createClient, type CookieStore } from "@/utils/supabase/server";
 
 export const runtime = "nodejs";
 
-type ErrorFormat = "plain" | "json";
+type ErrorFormat = "plain" | "json" | "html";
 
-function errResponse(format: ErrorFormat, status: number, message: string): Response {
+function errResponse(
+  format: ErrorFormat,
+  status: number,
+  message: string,
+  opts?: { req?: Request; txRef?: string | null },
+): Response {
   if (format === "json") {
     return NextResponse.json({ error: message }, { status });
+  }
+  if (format === "html" && opts?.req) {
+    const url = new URL(opts.req.url);
+    const basePath = `/api/payments/maishapay/go${opts.txRef ? `?txRef=${encodeURIComponent(opts.txRef)}` : ""}`;
+    const signInHref = `${url.origin}/auth/sign-in?next=${encodeURIComponent(basePath)}`;
+    const secondary =
+      status === 401
+        ? "Opening this link in another browser or without logging in here first will fail. Start checkout from the app while signed in, or sign in below and we will send you back."
+        : undefined;
+    const html = checkoutGateErrorPageHtml({
+      title: status === 401 ? "Sign in to continue" : "Checkout unavailable",
+      message,
+      primaryHref: signInHref,
+      primaryLabel: "Sign in and continue",
+      secondaryHint: secondary,
+    });
+    return new NextResponse(html, {
+      status,
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
   }
   return new NextResponse(message, {
     status,
@@ -45,7 +71,10 @@ async function renderMaishaGoPage(
         { status: 401 },
       );
     }
-    return errResponse(errorFormat, 401, "Sign in required to continue checkout.");
+    return errResponse(errorFormat, 401, "Sign in required to continue checkout.", {
+      req,
+      txRef,
+    });
   }
 
   const { data: pay, error } = await supabase
@@ -57,11 +86,11 @@ async function renderMaishaGoPage(
     .maybeSingle();
 
   if (error || !pay) {
-    return errResponse(errorFormat, 404, "Payment not found");
+    return errResponse(errorFormat, 404, "Payment not found.", { req, txRef });
   }
 
   if (pay.user_id !== user.id) {
-    return errResponse(errorFormat, 403, "Forbidden");
+    return errResponse(errorFormat, 403, "This payment belongs to another account.", { req, txRef });
   }
 
   if (pay.status !== "PENDING" && pay.status !== "INITIATED") {
@@ -69,6 +98,7 @@ async function renderMaishaGoPage(
       errorFormat,
       409,
       "This checkout session is no longer pending.",
+      { req, txRef },
     );
   }
 
@@ -77,7 +107,7 @@ async function renderMaishaGoPage(
     cfg = getMaishaPayGatewayConfig();
   } catch (e) {
     const msg = e instanceof Error ? e.message : "MaishaPay is not configured";
-    return errResponse(errorFormat, 500, msg);
+    return errResponse(errorFormat, 500, msg, { req, txRef });
   }
 
   const devise = String(pay.currency).toUpperCase();
@@ -113,10 +143,10 @@ export async function GET(req: Request) {
   const txRef =
     url.searchParams.get("txRef")?.trim() || url.searchParams.get("reference")?.trim();
   if (!txRef) {
-    return errResponse("plain", 400, "Missing txRef");
+    return errResponse("html", 400, "Missing payment reference (txRef).", { req, txRef: null });
   }
 
-  return renderMaishaGoPage(await cookies(), req, txRef, "plain");
+  return renderMaishaGoPage(await cookies(), req, txRef, "html");
 }
 
 export async function POST(req: Request) {

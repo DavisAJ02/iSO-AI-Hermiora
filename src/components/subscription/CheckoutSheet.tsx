@@ -129,11 +129,8 @@ export function CheckoutSheet() {
         return;
       }
 
-      if (checkout.paymentMethod === "card" && data.checkoutUrl?.trim()) {
-        window.location.assign(data.checkoutUrl.trim());
-        return;
-      }
-
+      /** Always POST `/maishapay/go` with Bearer token — GET via `window.location` cannot send Authorization,
+       *  so preview deployments or strict cookie scopes appear “signed out” even when the SPA has a session. */
       const goRes = await fetch("/api/payments/maishapay/go", {
         method: "POST",
         headers: {
