@@ -36,6 +36,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/api") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/auth/callback") ||
+    /** MaishaPay returns users here before cookies always attach on cross-site redirect */
+    pathname.startsWith("/billing") ||
     pathname === "/favicon.ico";
 
   let supabaseResponse = NextResponse.next({
