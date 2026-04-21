@@ -136,21 +136,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     monthlyVideoCap: number;
   }>({ tier: "free", usedVideos: 0, monthlyVideoCap: 5 });
 
+  /** Display name from Supabase `profiles.name` — no placeholder identity */
+  const [savedProfileName, setSavedProfileName] = useState("");
+
   const loadPlanFromProfile = useCallback(async () => {
     if (status !== "authenticated" || !user?.id) {
       setPlan({ tier: "free", usedVideos: 0, monthlyVideoCap: 5 });
+      setSavedProfileName("");
       return;
     }
     const supabase = createClient();
     const { data, error } = await supabase
       .from("profiles")
-      .select("plan, monthly_usage_count, usage_limit")
+      .select("plan, monthly_usage_count, usage_limit, name")
       .eq("id", user.id)
       .maybeSingle();
 
     if (error || !data) {
       return;
     }
+
+    const n = data.name;
+    setSavedProfileName(typeof n === "string" ? n.trim() : "");
 
     setPlan({
       tier: normalizePlanTier(data.plan as string),
@@ -259,8 +266,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       startGeneration,
       resetGeneration,
       profile: {
-        name: "Jordan Davis",
-        handle: "@jordancreates",
+        name: savedProfileName,
+        handle: "",
         defaultVoice,
         setDefaultVoice,
         videoStyle,
@@ -317,6 +324,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       videoStyle,
       autoCaptions,
       notifications,
+      savedProfileName,
       plan,
       period,
       selectedTier,
