@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
+import type { AuthedRequest } from "../../types/authed-request.js";
 import { requireAuth } from "../auth/preHandler.js";
 
 type InitiateBody = {
@@ -13,7 +14,7 @@ export async function registerPaymentRoutes(app: FastifyInstance): Promise<void>
     "/payment/initiate",
     { preHandler: requireAuth },
     async (request, reply) => {
-      const supabase = request.supabase!;
+      const supabase = (request as AuthedRequest<{ Body: InitiateBody }>).authSupabase;
       const body = request.body;
       if (!body?.amount || body.amount <= 0) {
         return reply.status(400).send({ error: "amount must be a positive number" });
@@ -50,7 +51,7 @@ export async function registerPaymentRoutes(app: FastifyInstance): Promise<void>
     "/payment/status/:ref",
     { preHandler: requireAuth },
     async (request, reply) => {
-      const supabase = request.supabase!;
+      const supabase = (request as AuthedRequest<{ Params: { ref: string } }>).authSupabase;
       const { ref } = request.params;
       const { data, error } = await supabase
         .from("payments")

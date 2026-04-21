@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import type { AuthedRequest } from "../../types/authed-request.js";
 import { requireAuth } from "../auth/preHandler.js";
 import { enqueueGeneration } from "../../queue/job.queue.js";
 
@@ -7,8 +8,9 @@ export async function registerGenerationRoutes(app: FastifyInstance): Promise<vo
     "/generate",
     { preHandler: requireAuth },
     async (request, reply) => {
-      const supabase = request.supabase!;
-      const token = request.accessToken!;
+      const r = request as AuthedRequest<{ Body: { idea: string; title?: string; projectId?: string } }>;
+      const supabase = r.authSupabase;
+      const token = r.authAccessToken;
       const { idea, title = "New video", projectId } = request.body ?? ({} as { idea?: string });
 
       if (!idea?.trim()) {
@@ -59,7 +61,7 @@ export async function registerGenerationRoutes(app: FastifyInstance): Promise<vo
     "/generate/:id/status",
     { preHandler: requireAuth },
     async (request, reply) => {
-      const supabase = request.supabase!;
+      const supabase = (request as AuthedRequest<{ Params: { id: string } }>).authSupabase;
       const { id } = request.params;
 
       const { data: project, error: pErr } = await supabase

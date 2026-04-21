@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
+import type { AuthedRequest } from "../../types/authed-request.js";
 import { createUserSupabaseClient, getUserIdFromJwt } from "../../lib/supabase.js";
 
 export async function requireAuth(
@@ -16,6 +17,7 @@ export async function requireAuth(
     await reply.status(401).send({ error: "Invalid or expired token" });
     return;
   }
-  request.accessToken = token;
-  request.supabase = createUserSupabaseClient(token);
+  const authed = request as AuthedRequest;
+  authed.authAccessToken = token;
+  authed.authSupabase = createUserSupabaseClient(token);
 }
