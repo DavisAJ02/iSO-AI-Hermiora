@@ -4,14 +4,14 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
-import { parseCanonicalTxRef } from "@/lib/payments/txRefCanonical";
+import { normalizeIncomingTxRef } from "@/lib/payments/txRefCanonical";
 import { getMaishaRequestAuthHeaders } from "@/lib/payments/maishaClientAuth";
 import { cn } from "@/lib/utils";
 import type { PaymentStatusResponse } from "@/lib/payments/types-maishapay";
 
 /**
  * Landing page after MaishaPay `callbackUrl` redirect. Never trust URL “status” params for
- * entitlement — we poll `/api/payments/[txRef]/status` until the webhook has updated the ledger.
+ * entitlement — we poll `/api/payments/status` until the webhook has updated the ledger.
  */
 function BillingResultInner() {
   const sp = useSearchParams();
@@ -20,15 +20,16 @@ function BillingResultInner() {
     sp.get("txRef")?.trim() ||
     sp.get("ref")?.trim() ||
     "";
-  const txRef = parseCanonicalTxRef(raw) ?? raw;
+  const txRef = raw ? normalizeIncomingTxRef(raw) ?? "" : "";
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!txRef) return;
     const poll = async () => {
       const authHeaders = await getMaishaRequestAuthHeaders();
+      /** Query-param route avoids slashes in path (%2F / proxy issues) */
       const res = await fetch(
-        `/api/payments/${encodeURIComponent(txRef)}/status`,
+        `/api/payments/status?txRef=${encodeURIComponent(txRef)}`,
         {
           credentials: "same-origin",
           headers: authHeaders,
@@ -50,6 +51,42 @@ function BillingResultInner() {
       if (timer.current) clearInterval(timer.current);
     };
   }, [txRef, router]);
+
+  if (!raw) {
+    return (
+      <div className="mx-auto flex min-h-[70dvh] max-w-md flex-col justify-center gap-6 px-4 py-10 text-center">
+        <h1 className="text-xl font-semibold text-slate-900">Missing payment reference</h1>
+        <p className="text-sm text-slate-600">Open this page from the checkout return link after paying.</p>
+        <Link
+          href="/"
+          className={cn(
+            "inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-900 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-slate-800 active:scale-[0.98]",
+          )}
+        >
+          Back to Hermiora
+        </Link>
+      </div>
+    );
+  }
+
+  if (!txRef) {
+    return (
+      <div className="mx-auto flex min-h-[70dvh] max-w-md flex-col justify-center gap-6 px-4 py-10 text-center">
+        <h1 className="text-xl font-semibold text-slate-900">Invalid payment link</h1>
+        <p className="text-sm text-slate-600">
+          We couldn&apos;t read the transaction id from this URL. Use the link from checkout or open Billing from your profile.
+        </p>
+        <Link
+          href="/"
+          className={cn(
+            "inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-900 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-slate-800 active:scale-[0.98]",
+          )}
+        >
+          Back to Hermiora
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto flex min-h-[70dvh] max-w-md flex-col justify-center gap-6 px-4 py-10">

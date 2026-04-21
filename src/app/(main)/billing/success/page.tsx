@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
+import { normalizeIncomingTxRef } from "@/lib/payments/txRefCanonical";
 import { getMaishaRequestAuthHeaders } from "@/lib/payments/maishaClientAuth";
 import { cn } from "@/lib/utils";
 
 function SuccessInner() {
   const sp = useSearchParams();
-  const ref = sp.get("ref");
+  const rawRef = sp.get("ref")?.trim() ?? "";
+  const ref = rawRef ? normalizeIncomingTxRef(rawRef) ?? rawRef : "";
   const [plan, setPlan] = useState<string | null>(null);
 
   useEffect(() => {
@@ -19,7 +21,7 @@ function SuccessInner() {
       const authHeaders = await getMaishaRequestAuthHeaders();
       const usesNewLedger = ref.startsWith("HERMIORA_");
       const url = usesNewLedger
-        ? `/api/payments/${encodeURIComponent(ref)}/status`
+        ? `/api/payments/status?txRef=${encodeURIComponent(ref)}`
         : `/api/payments/maisha/status/${encodeURIComponent(ref)}`;
       const res = await fetch(url, {
         credentials: "same-origin",

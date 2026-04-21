@@ -4,13 +4,15 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
+import { normalizeIncomingTxRef } from "@/lib/payments/txRefCanonical";
 import { getMaishaRequestAuthHeaders } from "@/lib/payments/maishaClientAuth";
 import { cn } from "@/lib/utils";
 
 function PendingInner() {
   const sp = useSearchParams();
   const router = useRouter();
-  const ref = sp.get("ref");
+  const rawRef = sp.get("ref")?.trim() ?? "";
+  const ref = rawRef ? normalizeIncomingTxRef(rawRef) ?? rawRef : "";
   const hint = "Confirm payment on your phone if you have not finished yet.";
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -20,7 +22,7 @@ function PendingInner() {
       const authHeaders = await getMaishaRequestAuthHeaders();
       const usesNewLedger = ref.startsWith("HERMIORA_");
       const url = usesNewLedger
-        ? `/api/payments/${encodeURIComponent(ref)}/status`
+        ? `/api/payments/status?txRef=${encodeURIComponent(ref)}`
         : `/api/payments/maisha/status/${encodeURIComponent(ref)}`;
       const res = await fetch(url, {
         credentials: "same-origin",
