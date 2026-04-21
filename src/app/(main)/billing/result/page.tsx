@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import {
   goHomeAfterBillingReturn,
@@ -26,10 +26,20 @@ function BillingResultInner() {
     "";
   const txRef = raw ? normalizeIncomingTxRef(raw) ?? "" : "";
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollCount = useRef(0);
+  const [slowNotice, setSlowNotice] = useState(false);
+  const [noWebhookHint, setNoWebhookHint] = useState(false);
 
   useEffect(() => {
     if (!txRef) return;
+    pollCount.current = 0;
+    setSlowNotice(false);
+    setNoWebhookHint(false);
     const poll = async () => {
+      pollCount.current += 1;
+      if (pollCount.current === 20) setSlowNotice(true);
+      if (pollCount.current === 45) setNoWebhookHint(true);
+
       const authHeaders = await getMaishaRequestAuthHeaders();
       /** Query-param route avoids slashes in path (%2F / proxy issues) */
       const res = await fetch(
@@ -105,6 +115,18 @@ function BillingResultInner() {
           Confirm on your phone if prompted. We&apos;ll verify your payment securely from our servers —
           please keep this tab open for a moment.
         </p>
+        {slowNotice ? (
+          <p className="mt-3 text-sm text-amber-800">
+            Still confirming… PSP callbacks can take a minute.
+          </p>
+        ) : null}
+        {noWebhookHint ? (
+          <p className="mt-2 text-xs text-slate-500">
+            {process.env.NODE_ENV === "development"
+              ? "Local tip: MaishaPay must POST to your machine — use a tunnel (ngrok, etc.), set APP_BASE_URL to that HTTPS URL, or test on your deployed site."
+              : "If this stays stuck, open Profile after a few minutes — your plan activates when our servers receive confirmation."}
+          </p>
+        ) : null}
       </div>
       <button
         type="button"

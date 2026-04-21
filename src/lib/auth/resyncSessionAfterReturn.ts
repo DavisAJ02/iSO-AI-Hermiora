@@ -25,7 +25,11 @@ export function useResyncSessionAfterExternalReturn() {
 
 /** Full reload so middleware sees cookies written by `refreshSession` (client navigations can race). */
 export async function goHomeAfterBillingReturn() {
-  const supabase = createClient();
-  await supabase.auth.refreshSession();
+  try {
+    const supabase = createClient();
+    await supabase.auth.refreshSession();
+  } catch {
+    /* session may still be valid from cookies; home is public */
+  }
   window.location.assign("/");
 }
