@@ -9,6 +9,8 @@ import {
   useRef,
   useState,
 } from "react";
+import { useAuth } from "@/context/AuthProvider";
+import { createClient } from "@/utils/supabase/client";
 import type {
   BillingPeriod,
   GenerationState,
@@ -89,7 +91,15 @@ function stepIndex(id: PipelineStepId) {
   return PIPELINE_STEPS.findIndex((s) => s.id === id);
 }
 
+function normalizePlanTier(raw: string | null | undefined): PlanTier {
+  const p = (raw ?? "").trim().toLowerCase();
+  if (p === "creator" || p === "pro") return p;
+  return "free";
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const { status, user } = useAuth();
+
   const [idea, setIdea] = useState("");
   const [createIdea, setCreateIdea] = useState("");
   const [generation, setGeneration] = useState<GenerationState>(initialGeneration);
@@ -119,6 +129,51 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [voiceMenuOpen, setVoiceMenuOpen] = useState(false);
   const [styleMenuOpen, setStyleMenuOpen] = useState(false);
+
+  const [plan, setPlan] = useState<{
+    tier: PlanTier;
+    usedVideos: number;
+    monthlyVideoCap: number;
+  }>({ tier: "free", usedVideos: 0, monthlyVideoCap: 5 });
+
+  const loadPlanFromProfile = useCallback(async () => {
+    if (status !== "authenticated" || !user?.id) {
+      setPlan({ tier: "free", usedVideos: 0, monthlyVideoCap: 5 });
+      return;
+    }
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("plan, monthly_usage_count, usage_limit")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (error || !data) {
+      return;
+    }
+
+    setPlan({
+      tier: normalizePlanTier(data.plan as string),
+      usedVideos: Number(data.monthly_usage_count ?? 0),
+      monthlyVideoCap: Number(data.usage_limit ?? 5),
+    });
+  }, [status, user?.id]);
+
+  useEffect(() => {
+    void loadPlanFromProfile();
+  }, [loadPlanFromProfile]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void loadPlanFromProfile();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [loadPlanFromProfile]);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -215,7 +270,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         notifications,
         setNotifications,
       },
-      plan: { tier: "free", usedVideos: 3, monthlyVideoCap: 5 },
+      plan,
       billing: { period, setPeriod },
       checkout: {
         selectedTier,
@@ -262,6 +317,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       videoStyle,
       autoCaptions,
       notifications,
+      plan,
       period,
       selectedTier,
       paymentMethod,

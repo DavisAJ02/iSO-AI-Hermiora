@@ -38,6 +38,10 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/auth/callback") ||
     /** MaishaPay returns users here before cookies always attach on cross-site redirect */
     pathname.startsWith("/billing") ||
+    /** Same as billing: lets the SPA shell load so browser Supabase can attach session after PSP return */
+    pathname.startsWith("/projects") ||
+    pathname.startsWith("/library") ||
+    pathname.startsWith("/profile") ||
     /** Home is public so “Back to Hermiora” works even when JWT refresh races after PSP return */
     pathname === "/" ||
     pathname === "/favicon.ico";

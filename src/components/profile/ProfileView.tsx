@@ -68,8 +68,11 @@ export function ProfileView() {
     }
   }, [router]);
   const used = plan.usedVideos;
-  const cap = plan.monthlyVideoCap;
-  const pct = Math.round((used / cap) * 100);
+  const displayCap = plan.monthlyVideoCap;
+  const safeCap = Math.max(displayCap, 1);
+  const pct = Math.min(100, Math.round((used / safeCap) * 100));
+  const planTitle =
+    plan.tier === "free" ? "Free Plan" : plan.tier === "creator" ? "Creator Plan" : "Pro Plan";
 
   return (
     <div className="flex flex-col gap-6 pb-4 pt-2 md:pt-6">
@@ -107,7 +110,7 @@ export function ProfileView() {
           <p className="truncate text-sm text-slate-500">{handleLine}</p>
           <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900 ring-1 ring-amber-200/80">
             <Crown className="h-3.5 w-3.5" />
-            Free Plan
+            {planTitle}
           </div>
         </div>
         <Button variant="outline" type="button" className="shrink-0 px-3 py-2">
@@ -118,9 +121,9 @@ export function ProfileView() {
       <Card className="space-y-3 p-4">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <p className="text-sm font-semibold text-slate-900">Free Plan</p>
+            <p className="text-sm font-semibold text-slate-900">{planTitle}</p>
             <p className="text-xs text-slate-500">
-              {used} of {cap} videos used this month
+              {used} of {displayCap} videos used this month
             </p>
           </div>
           <Button type="button" className="px-3 py-2 text-xs" onClick={ui.openGoPro}>
@@ -130,7 +133,7 @@ export function ProfileView() {
         <ProgressBar value={pct} />
         <div className="flex justify-between text-[11px] text-slate-500">
           <span>{used} used</span>
-          <span>{cap - used} remaining</span>
+          <span>{Math.max(0, displayCap - used)} remaining</span>
         </div>
       </Card>
 

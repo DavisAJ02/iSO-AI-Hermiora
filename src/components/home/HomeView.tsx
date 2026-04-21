@@ -82,7 +82,11 @@ export function HomeView() {
         <div className="flex items-center gap-2 rounded-full border border-slate-200/80 bg-white/90 px-2 py-1 shadow-sm backdrop-blur">
           <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-900 ring-1 ring-amber-200/80">
             <Crown className="h-3.5 w-3.5" aria-hidden />
-            {plan.tier === "free" ? "Free" : "Pro"}
+            {plan.tier === "free"
+              ? "Free"
+              : plan.tier === "creator"
+                ? "Creator"
+                : "Pro"}
           </span>
           <button
             type="button"
