@@ -1,14 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
+import {
+  goHomeAfterBillingReturn,
+  useResyncSessionAfterExternalReturn,
+} from "@/lib/auth/resyncSessionAfterReturn";
 import { normalizeIncomingTxRef } from "@/lib/payments/txRefCanonical";
 import { getMaishaRequestAuthHeaders } from "@/lib/payments/maishaClientAuth";
 import { cn } from "@/lib/utils";
 
 function SuccessInner() {
+  useResyncSessionAfterExternalReturn();
   const sp = useSearchParams();
   const rawRef = sp.get("ref")?.trim() ?? "";
   const ref = rawRef ? normalizeIncomingTxRef(rawRef) ?? rawRef : "";
@@ -55,15 +59,16 @@ function SuccessInner() {
         </p>
         <p className="mt-1 text-xs text-slate-500">Instant activation after confirmation.</p>
       </div>
-      <Link
-        href="/"
+      <button
+        type="button"
+        onClick={() => void goHomeAfterBillingReturn()}
         className={cn(
-          "inline-flex w-full items-center justify-center gap-2 rounded-full py-3 text-base font-semibold text-white shadow-hermi-glow transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600",
+          "inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-full border-0 py-3 text-base font-semibold text-white shadow-hermi-glow transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600",
           "hermi-gradient-fill hover:brightness-105 active:scale-[0.98]",
         )}
       >
         Back to Hermiora
-      </Link>
+      </button>
     </div>
   );
 }

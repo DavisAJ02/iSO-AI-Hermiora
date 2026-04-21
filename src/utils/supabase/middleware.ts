@@ -69,6 +69,12 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
+  /**
+   * Refresh expired access tokens into cookies before getUser(). After long PSP redirects the JWT
+   * can be stale; without this, getUser() is null and protected routes send users to sign-in.
+   */
+  await supabase.auth.getSession();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();

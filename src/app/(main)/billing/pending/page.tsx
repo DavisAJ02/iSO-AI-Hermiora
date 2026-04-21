@@ -1,14 +1,18 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
+import {
+  goHomeAfterBillingReturn,
+  useResyncSessionAfterExternalReturn,
+} from "@/lib/auth/resyncSessionAfterReturn";
 import { normalizeIncomingTxRef } from "@/lib/payments/txRefCanonical";
 import { getMaishaRequestAuthHeaders } from "@/lib/payments/maishaClientAuth";
 import { cn } from "@/lib/utils";
 
 function PendingInner() {
+  useResyncSessionAfterExternalReturn();
   const sp = useSearchParams();
   const router = useRouter();
   const rawRef = sp.get("ref")?.trim() ?? "";
@@ -69,14 +73,15 @@ function PendingInner() {
           We&apos;ll keep checking automatically. You can leave this page open.
         </p>
       </div>
-      <Link
-        href="/"
+      <button
+        type="button"
+        onClick={() => void goHomeAfterBillingReturn()}
         className={cn(
-          "inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-900 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-slate-800 active:scale-[0.98]",
+          "inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-full border-0 bg-slate-900 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-slate-800 active:scale-[0.98]",
         )}
       >
         Back to Hermiora
-      </Link>
+      </button>
     </div>
   );
 }

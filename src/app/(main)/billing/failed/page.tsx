@@ -1,12 +1,16 @@
 "use client";
 
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { XCircle } from "lucide-react";
+import {
+  goHomeAfterBillingReturn,
+  useResyncSessionAfterExternalReturn,
+} from "@/lib/auth/resyncSessionAfterReturn";
 import { cn } from "@/lib/utils";
 
 function FailedInner() {
+  useResyncSessionAfterExternalReturn();
   const sp = useSearchParams();
   const ref = sp.get("ref");
 
@@ -23,15 +27,16 @@ function FailedInner() {
             : "You can try again from checkout."}
         </p>
       </div>
-      <Link
-        href="/"
+      <button
+        type="button"
+        onClick={() => void goHomeAfterBillingReturn()}
         className={cn(
-          "inline-flex w-full items-center justify-center gap-2 rounded-full py-3 text-base font-semibold text-white shadow-hermi-glow transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600",
+          "inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-full border-0 py-3 text-base font-semibold text-white shadow-hermi-glow transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600",
           "hermi-gradient-fill hover:brightness-105 active:scale-[0.98]",
         )}
       >
         Try again from app
-      </Link>
+      </button>
     </div>
   );
 }
