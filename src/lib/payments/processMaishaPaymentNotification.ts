@@ -26,11 +26,7 @@ export async function applyMaishaPaymentNotification(
   admin: SupabaseClient,
   rawFields: Record<string, string>,
 ): Promise<{ ok: boolean; txRef: string | null; skipped?: string }> {
-  const txRef =
-    extractTxRef(rawFields) ??
-    rawFields.ref?.trim() ??
-    rawFields.reference?.trim() ??
-    null;
+  const txRef = extractTxRef(rawFields);
 
   if (!txRef) {
     return { ok: false, txRef: null, skipped: "missing_tx_ref" };

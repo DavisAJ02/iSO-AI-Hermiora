@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
+import { parseCanonicalTxRef } from "@/lib/payments/txRefCanonical";
 import { createClient } from "@/utils/supabase/server";
 import type { PaymentPublicStatus, PaymentStatusResponse } from "@/lib/payments/types-maishapay";
 
@@ -23,7 +24,8 @@ export async function GET(
   ctx: { params: Promise<{ txRef: string }> },
 ) {
   const { txRef: rawTx } = await ctx.params;
-  const txRef = decodeURIComponent(rawTx ?? "").trim();
+  const decoded = decodeURIComponent(rawTx ?? "").trim();
+  const txRef = parseCanonicalTxRef(decoded) ?? decoded;
   if (!txRef) {
     return NextResponse.json({ error: "Missing txRef" }, { status: 400 });
   }

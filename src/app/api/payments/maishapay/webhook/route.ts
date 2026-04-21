@@ -58,8 +58,7 @@ export async function GET(req: Request) {
   const admin = createAdminSupabaseClient();
   const result = await applyMaishaPaymentNotification(admin, fields);
 
-  const txRef =
-    result.txRef ?? extractTxRef(fields) ?? fields.ref ?? fields.reference ?? null;
+  const txRef = result.txRef ?? extractTxRef(fields) ?? null;
 
   const base = getAppBaseUrl();
   const redirect = new URL("/billing/result", base);

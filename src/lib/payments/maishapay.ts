@@ -4,8 +4,11 @@
  */
 
 import type { MaishaGatewayConfig } from "@/lib/payments/maishaEnv";
+import { parseCanonicalTxRef } from "@/lib/payments/txRefCanonical";
 
 export type MaishaPaySecrets = MaishaGatewayConfig;
+
+export { parseCanonicalTxRef };
 
 export function getMaishaPayGatewayConfig(): MaishaPaySecrets {
   const checkoutUrl =
@@ -79,7 +82,8 @@ export function extractTxRef(fields: Record<string, string>): string | null {
     fields.payment_ref ??
     "";
   const v = typeof raw === "string" ? raw.trim() : "";
-  return v || null;
+  if (!v) return null;
+  return parseCanonicalTxRef(v);
 }
 
 export function extractMaishaMeta(fields: Record<string, string>): {

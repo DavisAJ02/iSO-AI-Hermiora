@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
+import { parseCanonicalTxRef } from "@/lib/payments/txRefCanonical";
 import { getMaishaRequestAuthHeaders } from "@/lib/payments/maishaClientAuth";
 import { cn } from "@/lib/utils";
 import type { PaymentStatusResponse } from "@/lib/payments/types-maishapay";
@@ -15,7 +16,11 @@ import type { PaymentStatusResponse } from "@/lib/payments/types-maishapay";
 function BillingResultInner() {
   const sp = useSearchParams();
   const router = useRouter();
-  const txRef = sp.get("txRef")?.trim() || sp.get("ref")?.trim() || "";
+  const raw =
+    sp.get("txRef")?.trim() ||
+    sp.get("ref")?.trim() ||
+    "";
+  const txRef = parseCanonicalTxRef(raw) ?? raw;
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
