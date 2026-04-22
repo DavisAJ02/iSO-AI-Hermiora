@@ -196,9 +196,56 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, [status, user?.id]);
 
+  const loadPlanFromPaymentReturn = useCallback(async () => {
+    const url = new URL(window.location.href);
+    const isBillingReturn = url.searchParams.get("billing") === "success";
+    const txRef =
+      url.searchParams.get("txRef")?.trim() ||
+      url.searchParams.get("ref")?.trim() ||
+      "";
+
+    if (!isBillingReturn || !txRef) return;
+
+    try {
+      const authHeaders = await getMaishaRequestAuthHeaders();
+      const res = await fetch(
+        `/api/payments/status?txRef=${encodeURIComponent(txRef)}`,
+        {
+          credentials: "same-origin",
+          headers: authHeaders,
+          cache: "no-store",
+        },
+      );
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        status?: string | null;
+        plan?: string | null;
+      };
+      if (data.status !== "success") return;
+
+      const tier = normalizePlanTier(data.plan);
+      if (tier === "free") return;
+      setPlan((current) => ({
+        tier,
+        usedVideos: current.usedVideos,
+        monthlyVideoCap: defaultCapForPlan(tier),
+      }));
+    } finally {
+      url.searchParams.delete("billing");
+      url.searchParams.delete("txRef");
+      url.searchParams.delete("ref");
+      url.searchParams.delete("ts");
+      window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    }
+  }, []);
+
   useEffect(() => {
     void loadPlanFromProfile();
   }, [loadPlanFromProfile]);
+
+  useEffect(() => {
+    void loadPlanFromPaymentReturn();
+  }, [loadPlanFromPaymentReturn]);
 
   useEffect(() => {
     const onVisible = () => {

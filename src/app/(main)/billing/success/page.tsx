@@ -61,7 +61,7 @@ function SuccessInner() {
       </div>
       <button
         type="button"
-        onClick={() => void goHomeAfterBillingReturn()}
+        onClick={() => void goHomeAfterBillingReturn(ref)}
         className={cn(
           "inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-full border-0 py-3 text-base font-semibold text-white shadow-hermi-glow transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600",
           "hermi-gradient-fill hover:brightness-105 active:scale-[0.98]",

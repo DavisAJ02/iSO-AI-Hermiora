@@ -24,12 +24,18 @@ export function useResyncSessionAfterExternalReturn() {
 }
 
 /** Full reload so middleware sees cookies written by `refreshSession` (client navigations can race). */
-export async function goHomeAfterBillingReturn() {
+export async function goHomeAfterBillingReturn(txRef?: string | null) {
   try {
     const supabase = createClient();
     await supabase.auth.refreshSession();
   } catch {
     /* session may still be valid from cookies; home is public */
   }
-  window.location.assign("/");
+  const target = new URL("/", window.location.origin);
+  if (txRef?.trim()) {
+    target.searchParams.set("billing", "success");
+    target.searchParams.set("txRef", txRef.trim());
+    target.searchParams.set("ts", String(Date.now()));
+  }
+  window.location.assign(target.toString());
 }

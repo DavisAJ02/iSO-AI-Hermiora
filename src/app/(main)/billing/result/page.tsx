@@ -130,7 +130,7 @@ function BillingResultInner() {
       </div>
       <button
         type="button"
-        onClick={() => void goHomeAfterBillingReturn()}
+        onClick={() => void goHomeAfterBillingReturn(txRef)}
         className={cn(
           "inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-full border-0 bg-slate-900 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-slate-800 active:scale-[0.98]",
         )}
