@@ -125,7 +125,7 @@ export function CreateVideoSheet() {
             type="button"
             className="w-full py-3 text-base"
             onClick={() => {
-              startGeneration(createIdea || undefined);
+              void startGeneration(createIdea || undefined);
               ui.closeCreate();
             }}
           >

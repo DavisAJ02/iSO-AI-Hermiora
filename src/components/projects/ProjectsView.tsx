@@ -14,7 +14,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { sampleProjects } from "@/lib/sample-data";
+import { useApp } from "@/context/AppProvider";
 import { formatDuration, cn } from "@/lib/utils";
 import type { ProjectStatus } from "@/lib/types";
 
@@ -51,25 +51,31 @@ function statusPill(status: ProjectStatus) {
       className: "bg-slate-800 text-white border-slate-700",
       icon: Eye,
     },
+    failed: {
+      label: "Failed",
+      className: "bg-rose-50 text-rose-800 border-rose-200",
+      icon: CircleDashed,
+    },
   };
   return map[status];
 }
 
 export function ProjectsView() {
+  const { projects, ui } = useApp();
   const [filter, setFilter] = useState<(typeof filters)[number]["id"]>("all");
   const stats = useMemo(() => {
-    const total = sampleProjects.length;
-    const generating = sampleProjects.filter((p) => p.status === "generating").length;
-    const ready = sampleProjects.filter((p) => p.status === "ready").length;
+    const total = projects.items.length;
+    const generating = projects.items.filter((p) => p.status === "generating").length;
+    const ready = projects.items.filter((p) => p.status === "ready").length;
     return { total, generating, ready };
-  }, []);
+  }, [projects.items]);
 
   const list = useMemo(
     () =>
       filter === "all"
-        ? sampleProjects
-        : sampleProjects.filter((p) => p.status === filter),
-    [filter],
+        ? projects.items
+        : projects.items.filter((p) => p.status === filter),
+    [filter, projects.items],
   );
 
   return (
@@ -148,8 +154,31 @@ export function ProjectsView() {
         })}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-        {list.map((p) => {
+      {projects.loading ? (
+        <div className="rounded-[var(--hermi-radius-lg)] border border-slate-200/90 bg-white p-4 text-sm text-slate-500 shadow-sm">
+          Loading your projects...
+        </div>
+      ) : projects.error ? (
+        <div className="rounded-[var(--hermi-radius-lg)] border border-rose-100 bg-rose-50 p-4 text-sm font-medium text-rose-800">
+          {projects.error}
+        </div>
+      ) : list.length === 0 ? (
+        <div className="rounded-[var(--hermi-radius-lg)] border border-slate-200/90 bg-white p-5 text-center shadow-sm">
+          <p className="text-sm font-semibold text-slate-900">No projects found</p>
+          <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500">
+            Create your first video and it will be tracked here with its generation status.
+          </p>
+          <button
+            type="button"
+            onClick={ui.openCreate}
+            className="mt-4 rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition hover:bg-slate-800"
+          >
+            Create project
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+          {list.map((p) => {
           const pill = statusPill(p.status);
           const PillIcon = pill.icon;
           return (
@@ -218,8 +247,9 @@ export function ProjectsView() {
               </div>
             </article>
           );
-        })}
-      </div>
+          })}
+        </div>
+      )}
     </div>
   );
 }

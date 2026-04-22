@@ -16,10 +16,12 @@ import type {
   MobileOperator,
   PaymentMethod,
   PipelineStepId,
+  Project,
   PlanTier,
 } from "@/lib/types";
 import { PIPELINE_STEPS } from "@/lib/constants";
 import { getMaishaRequestAuthHeaders } from "@/lib/payments/maishaClientAuth";
+import { mapProjectRow, type ProjectRow } from "@/lib/projects/projectMapping";
 
 type SocialId = "tiktok" | "instagram" | "youtube";
 
@@ -29,8 +31,14 @@ interface AppContextValue {
   createIdea: string;
   setCreateIdea: (v: string) => void;
   generation: GenerationState;
-  startGeneration: (sourceIdea?: string) => void;
+  startGeneration: (sourceIdea?: string) => Promise<void>;
   resetGeneration: () => void;
+  projects: {
+    items: Project[];
+    loading: boolean;
+    error: string | null;
+    refresh: () => Promise<void>;
+  };
   profile: {
     name: string;
     handle: string;
@@ -110,6 +118,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [createIdea, setCreateIdea] = useState("");
   const [generation, setGeneration] = useState<GenerationState>(initialGeneration);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
 
   const [defaultVoice, setDefaultVoice] = useState("Dramatic Male");
   const [videoStyle, setVideoStyle] = useState("Cinematic");
@@ -196,6 +207,34 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     });
   }, [status, user?.id]);
 
+  const refreshProjects = useCallback(async () => {
+    if (status !== "authenticated" || !user?.id) {
+      setProjects([]);
+      setProjectsError(null);
+      return;
+    }
+
+    setProjectsLoading(true);
+    try {
+      const authHeaders = await getMaishaRequestAuthHeaders();
+      const res = await fetch("/api/projects", {
+        credentials: "same-origin",
+        headers: authHeaders,
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setProjectsError(data.error ?? "Projects could not be loaded.");
+        return;
+      }
+      const data = (await res.json()) as { projects?: ProjectRow[] };
+      setProjects((data.projects ?? []).map(mapProjectRow));
+      setProjectsError(null);
+    } finally {
+      setProjectsLoading(false);
+    }
+  }, [status, user?.id]);
+
   const loadPlanFromPaymentReturn = useCallback(async () => {
     const url = new URL(window.location.href);
     const isBillingReturn = url.searchParams.get("billing") === "success";
@@ -242,9 +281,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const id = window.setTimeout(() => {
       void loadPlanFromProfile();
+      void refreshProjects();
     }, 0);
     return () => window.clearTimeout(id);
-  }, [loadPlanFromProfile]);
+  }, [loadPlanFromProfile, refreshProjects]);
 
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -255,7 +295,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === "visible") void loadPlanFromProfile();
+      if (document.visibilityState === "visible") {
+        void loadPlanFromProfile();
+        void refreshProjects();
+      }
     };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
@@ -263,7 +306,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
-  }, [loadPlanFromProfile]);
+  }, [loadPlanFromProfile, refreshProjects]);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -278,7 +321,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [clearTimer]);
 
   const startGeneration = useCallback(
-    (sourceIdea?: string) => {
+    async (sourceIdea?: string) => {
       const text = (sourceIdea ?? idea).trim();
       if (!text) return;
       setIdea(text);
@@ -298,6 +341,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         currentStep: "hook",
         statusText: labels.hook,
       });
+
+      try {
+        const authHeaders = await getMaishaRequestAuthHeaders();
+        const res = await fetch("/api/projects", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...authHeaders,
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({ idea: text }),
+        });
+
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as { error?: string };
+          setGeneration({
+            active: false,
+            progress: 1,
+            currentStep: "hook",
+            statusText: data.error ?? "Project could not be created",
+          });
+          return;
+        }
+
+        const data = (await res.json()) as { project?: ProjectRow };
+        if (data.project) {
+          setProjects((current) => [mapProjectRow(data.project!), ...current]);
+        }
+        void loadPlanFromProfile();
+      } catch {
+        setGeneration({
+          active: false,
+          progress: 1,
+          currentStep: "hook",
+          statusText: "Network error. Try again.",
+        });
+        return;
+      }
 
       timerRef.current = setInterval(() => {
         setGeneration((g) => {
@@ -330,7 +411,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         });
       }, 420);
     },
-    [clearTimer, idea],
+    [clearTimer, idea, loadPlanFromProfile],
   );
 
   useEffect(() => () => clearTimer(), [clearTimer]);
@@ -348,6 +429,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       generation,
       startGeneration,
       resetGeneration,
+      projects: {
+        items: projects,
+        loading: projectsLoading,
+        error: projectsError,
+        refresh: refreshProjects,
+      },
       profile: {
         name: savedProfileName,
         handle: "",
@@ -403,6 +490,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       generation,
       startGeneration,
       resetGeneration,
+      projects,
+      projectsLoading,
+      projectsError,
+      refreshProjects,
       defaultVoice,
       videoStyle,
       autoCaptions,

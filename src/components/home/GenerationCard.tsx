@@ -37,7 +37,7 @@ export function GenerationCard() {
         <div>
           <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-900">
             <Sparkles className="h-4 w-4 text-violet-600" strokeWidth={2} />
-            AI is creating your video
+            {generation.active ? "AI is creating your video" : "Generation update"}
           </p>
           <p className="mt-1 text-xs text-slate-500">{generation.statusText}</p>
         </div>

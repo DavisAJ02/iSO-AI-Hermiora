@@ -22,7 +22,6 @@ import { Button } from "@/components/ui/Button";
 import { SectionLabel } from "@/components/ui/SectionLabel";
 import { GenerationCard } from "./GenerationCard";
 import { useApp } from "@/context/AppProvider";
-import { sampleProjects } from "@/lib/sample-data";
 import { formatDuration } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { ProjectStatus } from "@/lib/types";
@@ -52,12 +51,18 @@ function statusPill(status: ProjectStatus) {
       className: "bg-amber-50 text-amber-900 border-amber-200",
       icon: FileText,
     },
+    failed: {
+      label: "Failed",
+      className: "bg-rose-50 text-rose-800 border-rose-200",
+      icon: FileText,
+    },
   };
   return map[status];
 }
 
 export function HomeView() {
-  const { idea, setIdea, startGeneration, ui, plan } = useApp();
+  const { idea, setIdea, startGeneration, ui, plan, projects } = useApp();
+  const recentProjects = projects.items.slice(0, 3);
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -141,7 +146,7 @@ export function HomeView() {
             <Button
               type="button"
               className="ml-auto min-w-[8.5rem] gap-2 py-2 text-sm"
-              onClick={() => startGeneration()}
+              onClick={() => void startGeneration()}
             >
               <Sparkles className="h-4 w-4" strokeWidth={2} />
               Generate
@@ -203,8 +208,24 @@ export function HomeView() {
             See all
           </Link>
         </div>
-        <div className="-mx-1 flex gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-3 md:overflow-visible">
-          {sampleProjects.slice(0, 3).map((p) => {
+        {projects.loading ? (
+          <div className="rounded-[var(--hermi-radius-lg)] border border-slate-200/90 bg-white p-4 text-sm text-slate-500 shadow-sm">
+            Loading your projects...
+          </div>
+        ) : projects.error ? (
+          <div className="rounded-[var(--hermi-radius-lg)] border border-rose-100 bg-rose-50 p-4 text-sm font-medium text-rose-800">
+            {projects.error}
+          </div>
+        ) : recentProjects.length === 0 ? (
+          <div className="rounded-[var(--hermi-radius-lg)] border border-slate-200/90 bg-white p-4 shadow-sm">
+            <p className="text-sm font-semibold text-slate-900">No projects yet</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Start with an idea above and your first project will appear here.
+            </p>
+          </div>
+        ) : (
+          <div className="-mx-1 flex gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-3 md:overflow-visible">
+            {recentProjects.map((p) => {
             const pill = statusPill(p.status);
             const PillIcon = pill.icon;
             return (
@@ -260,8 +281,9 @@ export function HomeView() {
                 </div>
               </article>
             );
-          })}
-        </div>
+            })}
+          </div>
+        )}
       </section>
 
       <div className="rounded-[var(--hermi-radius-xl)] border border-violet-100/90 bg-gradient-to-r from-violet-50 via-fuchsia-50/80 to-violet-50/40 p-4 shadow-sm md:flex md:items-center md:justify-between md:gap-4">

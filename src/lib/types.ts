@@ -9,7 +9,8 @@ export type ProjectStatus =
   | "generating"
   | "ready"
   | "draft"
-  | "published";
+  | "published"
+  | "failed";
 
 export type PlanTier = "free" | "creator" | "pro";
 
@@ -40,6 +41,8 @@ export interface Project {
   gradient: string;
   /** 0–100 when status is generating; shown on thumbnails */
   thumbProgress?: number;
+  idea?: string | null;
+  createdAt?: string;
 }
 
 export interface Series {
