@@ -11,35 +11,35 @@ import {
   LineChart,
   Plus,
   Sparkles,
-  ThumbsUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { SectionLabel } from "@/components/ui/SectionLabel";
-import { sampleSeries } from "@/lib/sample-data";
 import { useApp } from "@/context/AppProvider";
-import { cn } from "@/lib/utils";
+import { cn, formatDuration } from "@/lib/utils";
 
 export function LibraryView() {
-  const { ui } = useApp();
+  const { ui, projects } = useApp();
+  const readyVideos = projects.items.filter((project) => project.status === "ready").length;
+  const generatingVideos = projects.items.filter((project) => project.status === "generating").length;
 
   const topStats = [
     {
-      label: "Total Views",
-      value: "284K",
+      label: "Projects",
+      value: String(projects.items.length),
       icon: Eye,
       iconWrap: "bg-violet-100 text-violet-700",
     },
     {
-      label: "Videos",
-      value: "25",
+      label: "Generating",
+      value: String(generatingVideos),
       icon: Film,
       iconWrap: "bg-violet-100 text-violet-700",
     },
     {
-      label: "Avg. ER",
-      value: "73%",
+      label: "Ready",
+      value: String(readyVideos),
       icon: LineChart,
       iconWrap: "bg-violet-100 text-violet-700",
     },
@@ -53,8 +53,9 @@ export function LibraryView() {
         </h1>
         <button
           type="button"
+          onClick={ui.openCreate}
           className="flex h-10 w-10 items-center justify-center rounded-full border border-violet-200/90 bg-gradient-to-br from-violet-100 to-fuchsia-100 text-violet-700 shadow-sm transition hover:brightness-105"
-          aria-label="New series"
+          aria-label="Create new video"
         >
           <Plus className="h-5 w-5" strokeWidth={2} />
         </button>
@@ -101,7 +102,7 @@ export function LibraryView() {
             </Badge>
           </div>
           <p className="text-xs text-slate-500">
-            Set it up once — AI creates every day.
+            Set it up once - AI creates every day.
           </p>
         </div>
         <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
@@ -109,23 +110,52 @@ export function LibraryView() {
 
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <SectionLabel className="text-slate-500">My series</SectionLabel>
+          <SectionLabel className="text-slate-500">My library</SectionLabel>
           <button
             type="button"
+            onClick={ui.openCreate}
             className="text-xs font-semibold text-violet-700 hover:text-violet-900"
           >
-            New Series +
+            New Video +
           </button>
         </div>
 
-        <div className="flex flex-col gap-4">
-          {sampleSeries.map((s) => (
-            <Card key={s.id} className="overflow-hidden p-0 shadow-md shadow-slate-900/5">
+        {projects.loading ? (
+          <Card className="p-4 text-sm text-slate-500">Loading your library...</Card>
+        ) : projects.error ? (
+          <Card className="border-rose-100 bg-rose-50 p-4 text-sm font-medium text-rose-800">
+            {projects.error}
+          </Card>
+        ) : projects.items.length === 0 ? (
+          <Card className="p-5 text-center">
+            <p className="text-sm font-semibold text-slate-900">Your library is empty</p>
+            <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500">
+              Create a project and it will appear here as part of your real content library.
+            </p>
+            <Button type="button" className="mt-4 px-4 py-2 text-xs" onClick={ui.openCreate}>
+              <Sparkles className="h-4 w-4" strokeWidth={2} />
+              Create first video
+            </Button>
+          </Card>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {projects.items.map((project) => {
+              const progress = project.status === "ready" ? 100 : project.thumbProgress ?? 0;
+              const statusLabel =
+                project.status === "generating"
+                  ? "Generating"
+                  : project.status === "ready"
+                    ? "Ready"
+                    : project.status === "failed"
+                      ? "Failed"
+                      : "Draft";
+              return (
+            <Card key={project.id} className="overflow-hidden p-0 shadow-md shadow-slate-900/5">
               <div className="flex items-start gap-3 border-b border-slate-100 p-4">
                 <div
                   className={cn(
                     "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-inner",
-                    s.thumbClass,
+                    project.gradient,
                   )}
                 >
                   <Film className="h-6 w-6" strokeWidth={1.5} />
@@ -134,10 +164,10 @@ export function LibraryView() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <h2 className="truncate text-base font-bold text-slate-900">
-                        {s.title}
+                        {project.title}
                       </h2>
                       <p className="text-xs font-semibold text-violet-700">
-                        {s.category}
+                        {project.category}
                       </p>
                     </div>
                     <ChevronRight className="mt-0.5 h-5 w-5 shrink-0 text-slate-300" />
@@ -145,29 +175,29 @@ export function LibraryView() {
                   <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500">
                     <span className="inline-flex items-center gap-1">
                       <Film className="h-3 w-3 text-slate-400" />
-                      {s.videoCount} videos
+                      {statusLabel}
                     </span>
                     <span className="inline-flex items-center gap-1">
                       <Clock className="h-3 w-3 text-slate-400" />
-                      {s.durationLabel}
+                      {formatDuration(project.durationSec)}
                     </span>
                   </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-3 divide-x divide-slate-100 bg-slate-50/80 px-2 py-3">
-                <Metric icon={Eye} iconClass="text-violet-600" label="Views" value={s.viewsLabel} />
+                <Metric icon={Eye} iconClass="text-violet-600" label="Progress" value={`${progress}%`} />
                 <Metric
-                  icon={ThumbsUp}
+                  icon={Sparkles}
                   iconClass="text-pink-500"
-                  label="Likes"
-                  value={s.likesLabel}
+                  label="Status"
+                  value={statusLabel}
                 />
                 <Metric
                   icon={Clock}
                   iconClass="text-emerald-600"
-                  label="Avg Watch"
-                  value={s.avgWatchLabel}
+                  label="Length"
+                  value={formatDuration(project.durationSec)}
                 />
               </div>
 
@@ -175,19 +205,16 @@ export function LibraryView() {
                 <div className="flex items-center justify-between gap-2">
                   <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-600">
                     <BarChart3 className="h-3.5 w-3.5 text-violet-600" />
-                    Engagement Rate
+                    Generation Progress
                   </span>
                   <span className="text-xs font-bold text-slate-900">
-                    {s.engagementPct}%
+                    {progress}%
                   </span>
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200/90">
                   <div
-                    className={cn(
-                      "h-full rounded-full bg-gradient-to-r shadow-sm",
-                      s.engagementBarClass,
-                    )}
-                    style={{ width: `${s.engagementPct}%` }}
+                    className="hermi-gradient-fill h-full rounded-full shadow-sm"
+                    style={{ width: `${progress}%` }}
                   />
                 </div>
               </div>
@@ -199,12 +226,14 @@ export function LibraryView() {
                   onClick={ui.openCreate}
                 >
                   <Sparkles className="h-4 w-4" strokeWidth={2} />
-                  Create video from this series
+                  Create another video
                 </Button>
               </div>
             </Card>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </section>
     </div>
   );
