@@ -50,6 +50,27 @@ async function parseMergedFields(req: Request): Promise<Record<string, string>> 
   return out;
 }
 
+function hasHostedCheckoutResult(fields: Record<string, string>): boolean {
+  const names = new Set(Object.keys(fields).map((key) => key.trim().toLowerCase()));
+  const hasOutcome = names.has("status") || names.has("description");
+  const hasProviderReference =
+    names.has("transactionrefid") ||
+    names.has("transaction_ref_id") ||
+    names.has("transactionid") ||
+    names.has("transaction_id") ||
+    names.has("operatorrefid") ||
+    names.has("operator_ref_id");
+
+  return hasOutcome && hasProviderReference;
+}
+
+function billingResultRedirect(txRef: string | null): string {
+  const base = getAppBaseUrl();
+  const redirect = new URL("/billing/result", base);
+  if (txRef) redirect.searchParams.set("txRef", txRef);
+  return redirect.toString();
+}
+
 /**
  * MaishaPay notification entrypoint. Configure `callbackUrl` in the hosted checkout form to hit this route.
  * MaishaPay may notify via browser redirect with query parameters and/or POST bodies — we normalize and persist.
@@ -58,24 +79,30 @@ export async function GET(req: Request) {
   const fields = await parseMergedFields(req);
   const txRef = extractTxRef(fields) ?? null;
 
-  const base = getAppBaseUrl();
-  const redirect = new URL("/billing/result", base);
-  if (txRef) redirect.searchParams.set("txRef", txRef);
+  if (txRef && hasHostedCheckoutResult(fields)) {
+    const admin = createAdminSupabaseClient();
+    await applyMaishaPaymentNotification(admin, fields);
+  }
 
-  return NextResponse.redirect(redirect.toString(), 302);
+  return NextResponse.redirect(billingResultRedirect(txRef), 302);
 }
 
 export async function POST(req: Request) {
+  const fields = await parseMergedFields(req);
   const verification = verifyMaishaWebhookRequest(req);
-  if (!verification.ok) {
+  if (!verification.ok && !hasHostedCheckoutResult(fields)) {
     return NextResponse.json(
       { received: false, error: verification.error },
       { status: verification.status },
     );
   }
 
-  const fields = await parseMergedFields(req);
   const admin = createAdminSupabaseClient();
   await applyMaishaPaymentNotification(admin, fields);
+
+  if (!verification.ok) {
+    return NextResponse.redirect(billingResultRedirect(extractTxRef(fields) ?? null), 302);
+  }
+
   return NextResponse.json({ received: true });
 }
