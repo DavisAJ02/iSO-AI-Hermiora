@@ -6,7 +6,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import { useAuth } from "@/context/AuthProvider";
@@ -111,13 +110,35 @@ function defaultCapForPlan(tier: PlanTier): number {
   return 5;
 }
 
+const generationStatusText: Record<PipelineStepId, string> = {
+  hook: "Crafting hook...",
+  script: "Writing script...",
+  scenes: "Planning scenes...",
+  image_prompts: "Preparing image prompts...",
+  voice: "Generating voice...",
+  captions: "Building captions...",
+  render_prep: "Preparing render...",
+  render: "Rendering video...",
+};
+
+function generationFromProject(project: Project): GenerationState {
+  const progress = project.status === "ready" ? 100 : project.thumbProgress ?? 0;
+  const currentStep = project.currentStep ?? (project.status === "ready" ? "render" : "hook");
+  return {
+    projectId: project.id,
+    active: project.status === "generating",
+    progress,
+    currentStep,
+    statusText: project.status === "ready" ? "Ready to preview" : generationStatusText[currentStep],
+  };
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const { status, user } = useAuth();
 
   const [idea, setIdea] = useState("");
   const [createIdea, setCreateIdea] = useState("");
   const [generation, setGeneration] = useState<GenerationState>(initialGeneration);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
@@ -228,7 +249,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       const data = (await res.json()) as { projects?: ProjectRow[] };
-      setProjects((data.projects ?? []).map(mapProjectRow));
+      const mappedProjects = (data.projects ?? []).map(mapProjectRow);
+      setProjects(mappedProjects);
+      const activeProject = mappedProjects.find((project) => project.status === "generating");
+      if (activeProject) {
+        setGeneration(generationFromProject(activeProject));
+      } else {
+        setGeneration((current) => {
+          if (!current.active) return current;
+          const completedProject = mappedProjects.find(
+            (project) => project.id === current.projectId && project.status === "ready",
+          );
+          return completedProject ? generationFromProject(completedProject) : current;
+        });
+      }
       setProjectsError(null);
     } finally {
       setProjectsLoading(false);
@@ -308,38 +342,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [loadPlanFromProfile, refreshProjects]);
 
-  const clearTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-  }, []);
+  useEffect(() => {
+    if (!projects.some((project) => project.status === "generating")) return;
+    const id = window.setInterval(() => {
+      void refreshProjects();
+    }, 2500);
+    return () => window.clearInterval(id);
+  }, [projects, refreshProjects]);
 
   const resetGeneration = useCallback(() => {
-    clearTimer();
     setGeneration(initialGeneration);
-  }, [clearTimer]);
+  }, []);
 
   const startGeneration = useCallback(
     async (sourceIdea?: string) => {
       const text = (sourceIdea ?? idea).trim();
       if (!text) return;
       setIdea(text);
-      clearTimer();
-
-      const labels: Record<PipelineStepId, string> = {
-        hook: "Crafting hook…",
-        script: "Writing script…",
-        scenes: "Planning scenes…",
-        voice: "Generating voice…",
-        rendering: "Rendering video…",
-      };
-
       setGeneration({
         active: true,
         progress: 6,
         currentStep: "hook",
-        statusText: labels.hook,
+        statusText: generationStatusText.hook,
       });
 
       try {
@@ -367,7 +391,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         const data = (await res.json()) as { project?: ProjectRow };
         if (data.project) {
-          setProjects((current) => [mapProjectRow(data.project!), ...current]);
+          const createdProject = mapProjectRow(data.project);
+          setProjects((current) => [createdProject, ...current]);
+          setGeneration(generationFromProject(createdProject));
+          window.setTimeout(() => {
+            void refreshProjects();
+          }, 1400);
         }
         void loadPlanFromProfile();
       } catch {
@@ -379,43 +408,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         });
         return;
       }
-
-      timerRef.current = setInterval(() => {
-        setGeneration((g) => {
-          if (!g.active) {
-            clearTimer();
-            return g;
-          }
-          const next = Math.min(100, g.progress + 7);
-          const order = PIPELINE_STEPS.map((s) => s.id);
-          const idx = Math.min(
-            order.length - 1,
-            Math.floor((next / 100) * order.length * 0.98),
-          );
-          const currentStep = order[idx];
-          if (next >= 100) {
-            clearTimer();
-            return {
-              active: false,
-              progress: 100,
-              currentStep: "rendering",
-              statusText: "Ready to preview",
-            };
-          }
-          return {
-            active: true,
-            progress: next,
-            currentStep,
-            statusText: labels[currentStep],
-          };
-        });
-      }, 420);
     },
-    [clearTimer, idea, loadPlanFromProfile],
+    [idea, loadPlanFromProfile, refreshProjects],
   );
-
-  useEffect(() => () => clearTimer(), [clearTimer]);
-
   const toggleSocial = useCallback((id: SocialId) => {
     setSocial((s) => ({ ...s, [id]: !s[id] }));
   }, []);

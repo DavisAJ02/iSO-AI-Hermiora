@@ -2,9 +2,13 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { titleFromIdea } from "@/lib/projects/projectMapping";
+import { syncUserGeneratingProjects } from "@/lib/projects/generationRunner";
 import { createClient } from "@/utils/supabase/server";
 
 export const runtime = "nodejs";
+
+const projectSelect =
+  "id,title,idea,status,progress,video_url,created_at,generations(step,status,output,updated_at)";
 
 const pipelineSteps = [
   "hook",
@@ -38,9 +42,15 @@ export async function GET(req: Request) {
   }
 
   const admin = createAdminSupabaseClient();
+  try {
+    await syncUserGeneratingProjects(admin, user.id);
+  } catch {
+    // The list should still load even if a progress sync attempt fails.
+  }
+
   const { data, error } = await admin
     .from("projects")
-    .select("id,title,idea,status,progress,video_url,created_at")
+    .select(projectSelect)
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(50);
@@ -115,7 +125,7 @@ export async function POST(req: Request) {
     );
   }
 
-  await admin.from("generations").insert(
+  const { error: generationErr } = await admin.from("generations").insert(
     pipelineSteps.map((step, index) => ({
       project_id: project.id,
       step,
@@ -123,10 +133,29 @@ export async function POST(req: Request) {
     })),
   );
 
+  if (generationErr) {
+    await admin
+      .from("projects")
+      .update({ status: "failed", progress: 1 })
+      .eq("id", project.id);
+    return NextResponse.json({ error: generationErr.message }, { status: 400 });
+  }
+
   await admin
     .from("profiles")
     .update({ monthly_usage_count: used + 1 })
     .eq("id", user.id);
 
-  return NextResponse.json({ project }, { status: 201 });
+  const { data: freshProject, error: freshErr } = await admin
+    .from("projects")
+    .select(projectSelect)
+    .eq("id", project.id)
+    .eq("user_id", user.id)
+    .single();
+
+  if (freshErr || !freshProject) {
+    return NextResponse.json({ project }, { status: 201 });
+  }
+
+  return NextResponse.json({ project: freshProject }, { status: 201 });
 }

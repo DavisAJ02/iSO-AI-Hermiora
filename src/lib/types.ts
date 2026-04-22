@@ -2,8 +2,13 @@ export type PipelineStepId =
   | "hook"
   | "script"
   | "scenes"
+  | "image_prompts"
   | "voice"
-  | "rendering";
+  | "captions"
+  | "render_prep"
+  | "render";
+
+export type PipelineJobStatus = "pending" | "processing" | "done" | "failed";
 
 export type ProjectStatus =
   | "generating"
@@ -26,10 +31,17 @@ export interface PipelineStep {
 }
 
 export interface GenerationState {
+  projectId?: string;
   active: boolean;
   progress: number;
   currentStep: PipelineStepId;
   statusText: string;
+}
+
+export interface GenerationStepState {
+  step: PipelineStepId;
+  status: PipelineJobStatus;
+  updatedAt?: string | null;
 }
 
 export interface Project {
@@ -43,6 +55,8 @@ export interface Project {
   thumbProgress?: number;
   idea?: string | null;
   createdAt?: string;
+  currentStep?: PipelineStepId;
+  generationSteps?: GenerationStepState[];
 }
 
 export interface Series {

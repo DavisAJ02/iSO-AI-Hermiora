@@ -4,8 +4,11 @@ export const PIPELINE_STEPS: PipelineStep[] = [
   { id: "hook", label: "Hook" },
   { id: "script", label: "Script" },
   { id: "scenes", label: "Scenes" },
+  { id: "image_prompts", label: "Images" },
   { id: "voice", label: "Voice" },
-  { id: "rendering", label: "Rendering" },
+  { id: "captions", label: "Captions" },
+  { id: "render_prep", label: "Prep" },
+  { id: "render", label: "Rendering" },
 ];
 
 export const VOICE_OPTIONS = [

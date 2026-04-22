@@ -17,8 +17,11 @@ const icons: Record<PipelineStepId, typeof Sparkles> = {
   hook: TextQuote,
   script: Clapperboard,
   scenes: Video,
+  image_prompts: Video,
   voice: Mic2,
-  rendering: Sparkles,
+  captions: TextQuote,
+  render_prep: Clapperboard,
+  render: Sparkles,
 };
 
 export function GenerationCard() {

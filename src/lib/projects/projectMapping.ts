@@ -1,4 +1,17 @@
-import type { Project, ProjectStatus } from "@/lib/types";
+import { PIPELINE_STEPS } from "@/lib/constants";
+import type {
+  GenerationStepState,
+  PipelineJobStatus,
+  PipelineStepId,
+  Project,
+  ProjectStatus,
+} from "@/lib/types";
+
+export type GenerationStepRow = {
+  step: string | null;
+  status: string | null;
+  updated_at?: string | null;
+};
 
 export type ProjectRow = {
   id: string;
@@ -8,6 +21,7 @@ export type ProjectRow = {
   progress: number | null;
   video_url?: string | null;
   created_at: string;
+  generations?: GenerationStepRow[] | null;
 };
 
 const gradients = [
@@ -33,6 +47,62 @@ function normalizeProjectStatus(raw: string | null | undefined): ProjectStatus {
   return "draft";
 }
 
+function normalizePipelineStep(raw: string | null | undefined): PipelineStepId | null {
+  const step = (raw ?? "").trim().toLowerCase();
+  return PIPELINE_STEPS.some((s) => s.id === step) ? (step as PipelineStepId) : null;
+}
+
+function normalizePipelineStatus(raw: string | null | undefined): PipelineJobStatus {
+  const status = (raw ?? "").trim().toLowerCase();
+  if (
+    status === "pending" ||
+    status === "processing" ||
+    status === "done" ||
+    status === "failed"
+  ) {
+    return status;
+  }
+  return "pending";
+}
+
+function mapGenerationSteps(rows: GenerationStepRow[] | null | undefined): GenerationStepState[] {
+  const rowByStep = new Map(
+    (rows ?? [])
+      .map((row) => {
+        const step = normalizePipelineStep(row.step);
+        if (!step) return null;
+        return [
+          step,
+          {
+            step,
+            status: normalizePipelineStatus(row.status),
+            updatedAt: row.updated_at ?? null,
+          },
+        ] as const;
+      })
+      .filter(Boolean) as [PipelineStepId, GenerationStepState][],
+  );
+
+  return PIPELINE_STEPS.map((step) => ({
+    step: step.id,
+    status: rowByStep.get(step.id)?.status ?? "pending",
+    updatedAt: rowByStep.get(step.id)?.updatedAt ?? null,
+  }));
+}
+
+function currentStepFromRows(
+  steps: GenerationStepState[],
+  progress: number,
+  status: ProjectStatus,
+): PipelineStepId {
+  if (status === "ready" || progress >= 100) return "render";
+  const processing = steps.find((step) => step.status === "processing");
+  if (processing) return processing.step;
+  const firstPending = steps.find((step) => step.status === "pending");
+  if (firstPending) return firstPending.step;
+  return "render";
+}
+
 function categoryFromIdea(idea: string | null | undefined): string {
   const text = (idea ?? "").trim();
   const prefix = text.split(":")[0]?.trim();
@@ -53,6 +123,8 @@ export function titleFromIdea(idea: string): string {
 
 export function mapProjectRow(row: ProjectRow): Project {
   const status = normalizeProjectStatus(row.status);
+  const generationSteps = mapGenerationSteps(row.generations);
+  const progress = Number(row.progress ?? 0);
   return {
     id: row.id,
     title: row.title?.trim() || titleFromIdea(row.idea ?? ""),
@@ -60,8 +132,10 @@ export function mapProjectRow(row: ProjectRow): Project {
     status,
     durationSec: 0,
     gradient: gradientForId(row.id),
-    thumbProgress: status === "generating" ? Number(row.progress ?? 0) : undefined,
+    thumbProgress: status === "generating" ? progress : undefined,
     idea: row.idea,
     createdAt: row.created_at,
+    currentStep: currentStepFromRows(generationSteps, progress, status),
+    generationSteps,
   };
 }
