@@ -10,7 +10,6 @@ import {
   useState,
 } from "react";
 import { useAuth } from "@/context/AuthProvider";
-import { createClient } from "@/utils/supabase/client";
 import type {
   BillingPeriod,
   GenerationState,
@@ -20,6 +19,7 @@ import type {
   PlanTier,
 } from "@/lib/types";
 import { PIPELINE_STEPS } from "@/lib/constants";
+import { getMaishaRequestAuthHeaders } from "@/lib/payments/maishaClientAuth";
 
 type SocialId = "tiktok" | "instagram" | "youtube";
 
@@ -97,6 +97,12 @@ function normalizePlanTier(raw: string | null | undefined): PlanTier {
   return "free";
 }
 
+function defaultCapForPlan(tier: PlanTier): number {
+  if (tier === "pro") return 200;
+  if (tier === "creator") return 50;
+  return 5;
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const { status, user } = useAuth();
 
@@ -145,24 +151,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setSavedProfileName("");
       return;
     }
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("plan, monthly_usage_count, usage_limit, name")
-      .eq("id", user.id)
-      .maybeSingle();
 
-    if (error || !data) {
+    const authHeaders = await getMaishaRequestAuthHeaders();
+    const res = await fetch("/api/me", {
+      credentials: "same-origin",
+      headers: authHeaders,
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
       return;
     }
 
-    const n = data.name;
+    const data = (await res.json()) as {
+      profile?: {
+        name?: string | null;
+        plan?: string | null;
+        monthly_usage_count?: number | null;
+        usage_limit?: number | null;
+      } | null;
+      subscription?: {
+        plan?: string | null;
+        status?: string | null;
+        expires_at?: string | null;
+      } | null;
+    };
+
+    const n = data.profile?.name;
     setSavedProfileName(typeof n === "string" ? n.trim() : "");
 
+    const activeSubscription =
+      data.subscription?.status === "active" &&
+      (!data.subscription.expires_at ||
+        new Date(data.subscription.expires_at).getTime() > Date.now());
+    const tier = normalizePlanTier(
+      activeSubscription ? data.subscription?.plan : data.profile?.plan,
+    );
+    const savedCap = Number(data.profile?.usage_limit ?? 0);
+
     setPlan({
-      tier: normalizePlanTier(data.plan as string),
-      usedVideos: Number(data.monthly_usage_count ?? 0),
-      monthlyVideoCap: Number(data.usage_limit ?? 5),
+      tier,
+      usedVideos: Number(data.profile?.monthly_usage_count ?? 0),
+      monthlyVideoCap: savedCap > 0 ? savedCap : defaultCapForPlan(tier),
     });
   }, [status, user?.id]);
 
