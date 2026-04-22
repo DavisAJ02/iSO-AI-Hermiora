@@ -3,7 +3,7 @@
 import { ArrowRight, Eye, EyeOff, Lock, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { signInWithApple, signInWithEmail, signInWithGoogle } from "@/lib/auth/authService";
 import { safeNextPath } from "@/lib/auth/safeNextPath";
@@ -26,11 +26,7 @@ export function SignInForm({
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (oauthBanner) setError(oauthBanner);
-  }, [oauthBanner]);
+  const [error, setError] = useState<string | null>(() => oauthBanner ?? null);
 
   const emailOk = isValidEmail(email);
   const canSubmit = emailOk && password.length > 0 && !busy;

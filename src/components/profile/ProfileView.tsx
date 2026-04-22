@@ -42,10 +42,7 @@ export function ProfileView() {
     );
   }, [user, profile.name]);
 
-  const handleLine = useMemo(() => {
-    if (user?.email) return user.email;
-    return profile.handle;
-  }, [user?.email, profile.handle]);
+  const handleLine = user?.email ?? profile.handle;
 
   const initials = useMemo(() => {
     const n = displayName.trim();

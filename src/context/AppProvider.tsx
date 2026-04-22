@@ -240,11 +240,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void loadPlanFromProfile();
+    const id = window.setTimeout(() => {
+      void loadPlanFromProfile();
+    }, 0);
+    return () => window.clearTimeout(id);
   }, [loadPlanFromProfile]);
 
   useEffect(() => {
-    void loadPlanFromPaymentReturn();
+    const id = window.setTimeout(() => {
+      void loadPlanFromPaymentReturn();
+    }, 0);
+    return () => window.clearTimeout(id);
   }, [loadPlanFromPaymentReturn]);
 
   useEffect(() => {

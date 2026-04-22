@@ -42,7 +42,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    const id = window.setTimeout(() => {
+      void refresh();
+    }, 0);
     const supabase = createClient();
     const {
       data: { subscription },
@@ -51,7 +53,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(nextSession?.user ?? null);
       setStatus(nextSession ? "authenticated" : "unauthenticated");
     });
-    return () => subscription.unsubscribe();
+    return () => {
+      window.clearTimeout(id);
+      subscription.unsubscribe();
+    };
   }, [refresh]);
 
   const value = useMemo<AuthContextValue>(

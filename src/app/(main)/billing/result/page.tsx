@@ -27,18 +27,25 @@ function BillingResultInner() {
   const txRef = raw ? normalizeIncomingTxRef(raw) ?? "" : "";
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollCount = useRef(0);
-  const [slowNotice, setSlowNotice] = useState(false);
-  const [noWebhookHint, setNoWebhookHint] = useState(false);
+  const [pollUi, setPollUi] = useState({
+    txRef: "",
+    slowNotice: false,
+    noWebhookHint: false,
+  });
+  const slowNotice = pollUi.txRef === txRef && pollUi.slowNotice;
+  const noWebhookHint = pollUi.txRef === txRef && pollUi.noWebhookHint;
 
   useEffect(() => {
     if (!txRef) return;
     pollCount.current = 0;
-    setSlowNotice(false);
-    setNoWebhookHint(false);
     const poll = async () => {
       pollCount.current += 1;
-      if (pollCount.current === 20) setSlowNotice(true);
-      if (pollCount.current === 45) setNoWebhookHint(true);
+      if (pollCount.current === 20) {
+        setPollUi({ txRef, slowNotice: true, noWebhookHint: false });
+      }
+      if (pollCount.current === 45) {
+        setPollUi({ txRef, slowNotice: true, noWebhookHint: true });
+      }
 
       const authHeaders = await getMaishaRequestAuthHeaders();
       /** Query-param route avoids slashes in path (%2F / proxy issues) */
