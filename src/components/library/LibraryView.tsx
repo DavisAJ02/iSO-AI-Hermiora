@@ -12,6 +12,7 @@ import {
   Plus,
   Sparkles,
 } from "lucide-react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -151,7 +152,10 @@ export function LibraryView() {
                       : "Draft";
               return (
             <Card key={project.id} className="overflow-hidden p-0 shadow-md shadow-slate-900/5">
-              <div className="flex items-start gap-3 border-b border-slate-100 p-4">
+              <Link
+                href={`/projects/${project.id}`}
+                className="flex items-start gap-3 border-b border-slate-100 p-4 transition hover:bg-slate-50"
+              >
                 <div
                   className={cn(
                     "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-inner",
@@ -183,7 +187,7 @@ export function LibraryView() {
                     </span>
                   </div>
                 </div>
-              </div>
+              </Link>
 
               <div className="grid grid-cols-3 divide-x divide-slate-100 bg-slate-50/80 px-2 py-3">
                 <Metric icon={Eye} iconClass="text-violet-600" label="Progress" value={`${progress}%`} />

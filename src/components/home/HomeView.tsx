@@ -229,8 +229,9 @@ export function HomeView() {
             const pill = statusPill(p.status);
             const PillIcon = pill.icon;
             return (
-              <article
+              <Link
                 key={p.id}
+                href={`/projects/${p.id}`}
                 className="min-w-[220px] shrink-0 overflow-hidden rounded-[var(--hermi-radius-lg)] border border-slate-200/90 bg-white shadow-sm md:min-w-0"
               >
                 <div
@@ -239,13 +240,12 @@ export function HomeView() {
                     p.gradient,
                   )}
                 >
-                  <button
-                    type="button"
+                  <span
                     className="flex h-12 w-12 items-center justify-center rounded-full bg-black/30 text-white shadow-lg backdrop-blur-sm transition hover:bg-black/40"
-                    aria-label={`Play ${p.title}`}
+                    aria-hidden
                   >
                     <Play className="ml-0.5 h-5 w-5 fill-white" />
-                  </button>
+                  </span>
                   <span
                     className={cn(
                       "absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold",
@@ -279,7 +279,7 @@ export function HomeView() {
                   </h3>
                   <p className="text-xs text-slate-500">{p.category}</p>
                 </div>
-              </article>
+              </Link>
             );
             })}
           </div>

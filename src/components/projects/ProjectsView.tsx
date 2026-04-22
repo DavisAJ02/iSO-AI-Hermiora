@@ -13,6 +13,7 @@ import {
   Play,
   Sparkles,
 } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useApp } from "@/context/AppProvider";
 import { formatDuration, cn } from "@/lib/utils";
@@ -182,8 +183,9 @@ export function ProjectsView() {
           const pill = statusPill(p.status);
           const PillIcon = pill.icon;
           return (
-            <article
+            <Link
               key={p.id}
+              href={`/projects/${p.id}`}
               className="group flex flex-col overflow-hidden rounded-[var(--hermi-radius-lg)] border border-slate-200/90 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
             >
               <div
@@ -192,13 +194,12 @@ export function ProjectsView() {
                   p.gradient,
                 )}
               >
-                <button
-                  type="button"
+                <span
                   className="flex h-11 w-11 items-center justify-center rounded-full bg-black/35 text-white shadow-lg backdrop-blur-sm transition group-hover:bg-black/45"
-                  aria-label={`Open ${p.title}`}
+                  aria-hidden
                 >
                   <Play className="ml-0.5 h-5 w-5 fill-white" />
-                </button>
+                </span>
                 <span
                   className={cn(
                     "absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold capitalize",
@@ -238,14 +239,13 @@ export function ProjectsView() {
                     </div>
                   )}
                 </div>
-                <button
-                  type="button"
+                <span
                   className="mt-auto w-full rounded-full border border-slate-200 py-2 text-xs font-semibold text-slate-700 transition hover:border-violet-200 hover:bg-violet-50 hover:text-violet-800"
                 >
-                  Quick actions
-                </button>
+                  Open project
+                </span>
               </div>
-            </article>
+            </Link>
           );
           })}
         </div>

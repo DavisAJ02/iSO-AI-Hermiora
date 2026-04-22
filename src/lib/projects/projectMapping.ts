@@ -10,6 +10,7 @@ import type {
 export type GenerationStepRow = {
   step: string | null;
   status: string | null;
+  output?: unknown;
   updated_at?: string | null;
 };
 
