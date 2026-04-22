@@ -79,13 +79,13 @@ on conflict (id) do nothing;
 | Table            | Rule |
 |-----------------|------|
 | `public.users`  | `select` own row only (`id = auth.uid()`). No client `update` (email synced from auth). |
-| `public.profiles` | `select` / `update` own row (`id = auth.uid()`). No client `insert` / `delete` (created with auth). |
+| `public.profiles` | `select` own row; client `update` only safe profile fields. Plan and usage fields are service-role only. |
 | `public.projects` | full CRUD where `user_id = auth.uid()`. |
 | `public.generations` | full CRUD when linked `project_id` belongs to the user. |
-| `public.subscriptions` | full CRUD where `user_id = auth.uid()`. |
-| `public.payments` | `select` / `insert` / `update` where `user_id = auth.uid()`. |
+| `public.subscriptions` | `select` own rows only. Inserts/updates/deletes are service-role only. |
+| `public.payments` | `select` own rows only. Inserts/updates/deletes are service-role only. |
 
-**Production hardening:** prefer writing `subscriptions` and `payments` from **Edge Functions** or your **Next.js server** using the **service role** key, then **remove** client `insert`/`update` policies and keep `select` only. The migration is permissive so you can iterate quickly in development.
+**Production hardening:** apply all migrations, including `20260421150000_harden_billing_rls.sql`. Billing state is service-role write only: authenticated clients can read their own `payments` / `subscriptions`, but they cannot insert, update, or delete billing rows. Profile updates are limited to safe profile fields and cannot change plan or usage columns.
 
 ## 4. Storage buckets & path convention
 

@@ -3,6 +3,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import {
   collectStringFields,
   extractTxRef,
+  verifyMaishaWebhookRequest,
 } from "@/lib/payments/maishapay";
 import { applyMaishaPaymentNotification } from "@/lib/payments/processMaishaPaymentNotification";
 import { getAppBaseUrl } from "@/lib/payments/maishaEnv";
@@ -55,10 +56,7 @@ async function parseMergedFields(req: Request): Promise<Record<string, string>> 
  */
 export async function GET(req: Request) {
   const fields = await parseMergedFields(req);
-  const admin = createAdminSupabaseClient();
-  const result = await applyMaishaPaymentNotification(admin, fields);
-
-  const txRef = result.txRef ?? extractTxRef(fields) ?? null;
+  const txRef = extractTxRef(fields) ?? null;
 
   const base = getAppBaseUrl();
   const redirect = new URL("/billing/result", base);
@@ -68,6 +66,14 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const verification = verifyMaishaWebhookRequest(req);
+  if (!verification.ok) {
+    return NextResponse.json(
+      { received: false, error: verification.error },
+      { status: verification.status },
+    );
+  }
+
   const fields = await parseMergedFields(req);
   const admin = createAdminSupabaseClient();
   await applyMaishaPaymentNotification(admin, fields);

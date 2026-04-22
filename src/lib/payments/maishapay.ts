@@ -3,6 +3,7 @@
  * Supports MAISHAPAY_* env names from deployment docs with MAISHA_* fallback.
  */
 
+import { timingSafeEqual } from "node:crypto";
 import type { MaishaGatewayConfig } from "@/lib/payments/maishaEnv";
 import { parseCanonicalTxRef } from "@/lib/payments/txRefCanonical";
 
@@ -50,7 +51,6 @@ export function buildHostedCheckoutFields(input: {
   const fields: MaishaHostedCheckoutFields = {
     gatewayMode: cfg.gatewayMode,
     publicApiKey: cfg.publicApiKey,
-    secretApiKey: cfg.secretApiKey,
     montant: input.montant,
     devise: input.devise,
     callbackUrl: input.callbackUrl,
@@ -111,4 +111,40 @@ export function extractMaishaMeta(fields: Record<string, string>): {
     ),
     operatorRefId: pick("operatorRefId", "operator_ref_id", "OperatorRefId"),
   };
+}
+
+function constantTimeEqual(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+export function verifyMaishaWebhookRequest(req: Request):
+  | { ok: true }
+  | { ok: false; status: number; error: string } {
+  const expected =
+    process.env.MAISHAPAY_WEBHOOK_SECRET?.trim() ||
+    process.env.MAISHA_WEBHOOK_SECRET?.trim();
+
+  if (!expected) {
+    return {
+      ok: false,
+      status: 503,
+      error: "MaishaPay webhook verification is not configured",
+    };
+  }
+
+  const auth = req.headers.get("authorization") ?? "";
+  const bearer = auth.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+  const presented =
+    req.headers.get("x-maishapay-webhook-secret")?.trim() ||
+    req.headers.get("x-webhook-secret")?.trim() ||
+    bearer ||
+    "";
+
+  if (!presented || !constantTimeEqual(presented, expected)) {
+    return { ok: false, status: 401, error: "Invalid MaishaPay webhook secret" };
+  }
+
+  return { ok: true };
 }

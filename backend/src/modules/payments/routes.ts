@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import type { AuthedRequest } from "../../types/authed-request.js";
 import { requireAuth } from "../auth/preHandler.js";
+import { createServiceSupabaseClient } from "../../lib/supabase.js";
 
 type InitiateBody = {
   amount: number;
@@ -29,7 +30,8 @@ export async function registerPaymentRoutes(app: FastifyInstance): Promise<void>
       const userId = authData.user?.id;
       if (!userId) return reply.status(401).send({ error: "Unauthorized" });
 
-      const { data, error } = await supabase
+      const serviceSupabase = createServiceSupabaseClient();
+      const { data, error } = await serviceSupabase
         .from("payments")
         .insert({
           user_id: userId,

@@ -139,7 +139,6 @@ export function exampleHostedCheckoutPayloadSample(): MaishaHostedCheckoutFields
   return {
     gatewayMode: "0",
     publicApiKey: "MP-SBPK-xxxxxxxxxxxxxxxx",
-    secretApiKey: "MP-SBSK-xxxxxxxxxxxxxxxx",
     montant: "29.99",
     devise: "USD",
     callbackUrl: "https://your-domain.com/api/payments/maishapay/webhook?ref=HERMIORA_abc",
