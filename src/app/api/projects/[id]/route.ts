@@ -4,6 +4,7 @@ import {
   ensureProjectGenerationOutputs,
   syncProjectGeneration,
 } from "@/lib/projects/generationRunner";
+import { runRealProjectGeneration } from "@/lib/ai/openAiGeneration";
 import { PIPELINE_STEPS } from "@/lib/constants";
 import { titleFromIdea } from "@/lib/projects/projectMapping";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
@@ -228,6 +229,26 @@ export async function PATCH(
     }
 
     return NextResponse.json({ project: freshCopy, duplicated: true });
+  } else if (body.action === "generate_ai") {
+    if (!project.idea?.trim() && !project.title?.trim()) {
+      return NextResponse.json(
+        { error: "Project needs an idea or title before AI generation." },
+        { status: 409 },
+      );
+    }
+    try {
+      await runRealProjectGeneration(admin, project);
+    } catch (generationErr) {
+      return NextResponse.json(
+        {
+          error:
+            generationErr instanceof Error
+              ? generationErr.message
+              : "AI generation failed.",
+        },
+        { status: 502 },
+      );
+    }
   } else {
     return NextResponse.json({ error: "Unsupported project action." }, { status: 400 });
   }

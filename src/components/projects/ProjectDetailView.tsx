@@ -10,6 +10,7 @@ import {
   Sparkles,
   Trash2,
   Upload,
+  Wand2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -130,7 +131,7 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
       : project?.thumbProgress ?? 0;
 
   const runProjectAction = useCallback(
-    async (action: "publish" | "unpublish" | "duplicate" | "delete") => {
+    async (action: "publish" | "unpublish" | "duplicate" | "delete" | "generate_ai") => {
       if (action === "delete" && !window.confirm("Delete this project?")) return;
 
       setActionBusy(action);
@@ -177,7 +178,13 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
 
         setProject(mapProjectRow(data.project));
         setGenerations((data.project.generations ?? []) as DetailGenerationRow[]);
-        setActionMessage(action === "publish" ? "Project published." : "Project moved back to ready.");
+        setActionMessage(
+          action === "publish"
+            ? "Project published."
+            : action === "generate_ai"
+              ? "AI generation completed."
+              : "Project moved back to ready.",
+        );
       } finally {
         setActionBusy(null);
       }
@@ -325,7 +332,21 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
             </div>
           </section>
 
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-4">
+            <Button
+              type="button"
+              variant="secondary"
+              className="py-3"
+              disabled={actionBusy != null}
+              onClick={() => void runProjectAction("generate_ai")}
+            >
+              {actionBusy === "generate_ai" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Wand2 className="h-4 w-4" />
+              )}
+              Generate AI
+            </Button>
             <Button
               type="button"
               className="py-3"

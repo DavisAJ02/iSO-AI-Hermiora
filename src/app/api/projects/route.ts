@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { titleFromIdea } from "@/lib/projects/projectMapping";
+import { runRealProjectGeneration } from "@/lib/ai/openAiGeneration";
 import { syncUserGeneratingProjects } from "@/lib/projects/generationRunner";
 import { createClient } from "@/utils/supabase/server";
 
@@ -145,6 +146,14 @@ export async function POST(req: Request) {
     .from("profiles")
     .update({ monthly_usage_count: used + 1 })
     .eq("id", user.id);
+
+  if (process.env.OPENAI_API_KEY && process.env.HERMIORA_REAL_GENERATION !== "off") {
+    try {
+      await runRealProjectGeneration(admin, project);
+    } catch {
+      // The project row records the failed AI generation state for the UI.
+    }
+  }
 
   const { data: freshProject, error: freshErr } = await admin
     .from("projects")
