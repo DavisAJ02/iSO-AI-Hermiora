@@ -37,10 +37,22 @@ type VoiceOutput = {
   audio_base64?: string;
   mime_type?: string;
   error?: string;
+  provider?: string;
+  model_id?: string;
+  voice_style?: string;
+  direction?: string;
+  characters?: number;
+  fallback_voice_name?: string;
+  fallback_from_voice_id?: string;
+  fallback_voice_category?: string;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function humanizeLabel(value: string) {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function outputLines(output: unknown): string[] {
@@ -49,7 +61,22 @@ function outputLines(output: unknown): string[] {
   if (Array.isArray(output)) return output.flatMap(outputLines).slice(0, 6);
   if (!isRecord(output)) return [String(output)];
 
+  const hiddenKeys = new Set([
+    "audio_base64",
+    "mime_type",
+    "provider",
+    "model_id",
+    "voice_id",
+    "voice_style",
+    "direction",
+    "characters",
+    "fallback_voice_name",
+    "fallback_from_voice_id",
+    "fallback_voice_category",
+  ]);
+
   return Object.entries(output).flatMap(([key, value]) => {
+    if (hiddenKeys.has(key)) return [];
     if (Array.isArray(value)) {
       return value.slice(0, 4).map((item) => {
         if (isRecord(item)) {
@@ -69,6 +96,74 @@ function statusClass(status: string | null | undefined) {
   if (status === "processing") return "border-violet-200 bg-violet-50 text-violet-800";
   if (status === "failed") return "border-rose-200 bg-rose-50 text-rose-800";
   return "border-slate-200 bg-slate-50 text-slate-500";
+}
+
+function VoiceAssetCard({
+  output,
+  audioSrc,
+}: {
+  output: VoiceOutput | undefined;
+  audioSrc: string | null;
+}) {
+  if (output?.error) {
+    return (
+      <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-3 text-xs leading-relaxed text-rose-700">
+        {output.error}
+      </div>
+    );
+  }
+
+  if (!audioSrc) {
+    return (
+      <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-700">
+        Waiting for this step to finish.
+      </p>
+    );
+  }
+
+  const badges = [
+    output?.provider ? humanizeLabel(output.provider) : null,
+    output?.model_id ?? null,
+    output?.voice_style ?? null,
+    typeof output?.characters === "number" ? `${output.characters} chars` : null,
+  ].filter(Boolean) as string[];
+
+  return (
+    <div className="space-y-3">
+      {badges.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {badges.map((badge) => (
+            <span
+              key={badge}
+              className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600"
+            >
+              {badge}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      {output?.direction ? (
+        <div className="rounded-xl bg-slate-50 px-3 py-3 text-xs leading-relaxed text-slate-700">
+          {output.direction}
+        </div>
+      ) : null}
+
+      {output?.fallback_voice_name ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs leading-relaxed text-amber-800">
+          Using fallback voice <span className="font-semibold">{output.fallback_voice_name}</span>
+          {output.fallback_voice_category
+            ? ` (${humanizeLabel(output.fallback_voice_category)})`
+            : ""}{" "}
+          because the configured voice is not available on this ElevenLabs plan.
+        </div>
+      ) : null}
+
+      <audio controls className="w-full" src={audioSrc}>
+        Your browser does not support audio playback.
+      </audio>
+    </div>
+  );
 }
 
 export function ProjectDetailView({ projectId }: { projectId: string }) {
@@ -339,18 +434,17 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
                       </span>
                     </div>
                     <div className="space-y-2">
-                      {outputLines(generation?.output).map((line, index) => (
-                        <p
-                          key={`${step.id}-${index}`}
-                          className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-700"
-                        >
-                          {line}
-                        </p>
-                      ))}
-                      {step.id === "voice" && voiceAudioSrc && (
-                        <audio controls className="mt-2 w-full" src={voiceAudioSrc}>
-                          Your browser does not support audio playback.
-                        </audio>
+                      {step.id === "voice" ? (
+                        <VoiceAssetCard output={voiceOutput} audioSrc={voiceAudioSrc} />
+                      ) : (
+                        outputLines(generation?.output).map((line, index) => (
+                          <p
+                            key={`${step.id}-${index}`}
+                            className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-700"
+                          >
+                            {line}
+                          </p>
+                        ))
                       )}
                     </div>
                   </Card>
