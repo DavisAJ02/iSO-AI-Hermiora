@@ -15,18 +15,42 @@ import {
   Plus,
   Sparkles,
   Trash2,
+  Wand2,
+  X,
 } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { SectionLabel } from "@/components/ui/SectionLabel";
 import { useApp } from "@/context/AppProvider";
+import { DEFAULT_CREATIVE_CONTROLS } from "@/lib/projects/creativeControls";
+import type { CreativeControls, Series } from "@/lib/types";
+import {
+  ART_STYLE_OPTIONS,
+  BACKGROUND_MUSIC_OPTIONS,
+  CAPTION_STYLE_OPTIONS,
+  EFFECT_OPTIONS,
+  LANGUAGE_OPTIONS,
+  NICHE_OPTIONS,
+  VOICE_STYLE_OPTIONS,
+} from "@/lib/constants";
 import { cn, formatDuration } from "@/lib/utils";
+
+type SeriesEditorState = {
+  mode: "create" | "edit";
+  seriesId: string | null;
+  title: string;
+  description: string;
+  controls: CreativeControls;
+};
 
 export function LibraryView() {
   const { ui, projects, series } = useApp();
   const generatingVideos = projects.items.filter((project) => project.status === "generating").length;
+  const [editor, setEditor] = useState<SeriesEditorState | null>(null);
+  const [savingSeries, setSavingSeries] = useState(false);
 
   const topStats = [
     {
@@ -49,11 +73,66 @@ export function LibraryView() {
     },
   ] as const;
 
-  const createSeries = async () => {
-    const title = window.prompt("Series name");
-    if (!title?.trim()) return;
-    const description = window.prompt("Short series description (optional)")?.trim() || null;
-    await series.create({ title: title.trim(), description });
+  const openCreateSeriesEditor = () => {
+    setEditor({
+      mode: "create",
+      seriesId: null,
+      title: "",
+      description: "",
+      controls: DEFAULT_CREATIVE_CONTROLS,
+    });
+  };
+
+  const openEditSeriesEditor = (item: Series) => {
+    setEditor({
+      mode: "edit",
+      seriesId: item.id,
+      title: item.title,
+      description: item.description ?? "",
+      controls: item.defaultCreativeControls,
+    });
+  };
+
+  const updateEditorControls = (next: Partial<CreativeControls>) => {
+    setEditor((current) =>
+      current
+        ? {
+            ...current,
+            controls: {
+              ...current.controls,
+              ...next,
+            },
+          }
+        : current,
+    );
+  };
+
+  const saveSeries = async () => {
+    if (!editor) return;
+    if (!editor.title.trim()) return;
+
+    setSavingSeries(true);
+    try {
+      let savedSeries: Series | null = null;
+      if (editor.mode === "create") {
+        savedSeries = await series.create({
+          title: editor.title.trim(),
+          description: editor.description.trim() || null,
+          defaultCreativeControls: editor.controls,
+        });
+      } else if (editor.seriesId) {
+        savedSeries = await series.update(editor.seriesId, {
+          title: editor.title.trim(),
+          description: editor.description.trim() || null,
+          defaultCreativeControls: editor.controls,
+        });
+      }
+      if (savedSeries) {
+        setEditor(null);
+      }
+    } finally {
+      setSavingSeries(false);
+    }
   };
 
   return (
@@ -124,7 +203,7 @@ export function LibraryView() {
           <SectionLabel className="text-slate-500">My series</SectionLabel>
           <button
             type="button"
-            onClick={() => void createSeries()}
+            onClick={openCreateSeriesEditor}
             className="text-xs font-semibold text-violet-700 hover:text-violet-900"
           >
             New Series +
@@ -143,7 +222,7 @@ export function LibraryView() {
             <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500">
               Create a series to save repeatable creative defaults, including music and style direction.
             </p>
-            <Button type="button" className="mt-4 px-4 py-2 text-xs" onClick={() => void createSeries()}>
+            <Button type="button" className="mt-4 px-4 py-2 text-xs" onClick={openCreateSeriesEditor}>
               <FolderKanban className="h-4 w-4" strokeWidth={2} />
               Create first series
             </Button>
@@ -232,18 +311,7 @@ export function LibraryView() {
                       type="button"
                       variant="ghost"
                       className="w-full gap-2 py-3 text-sm font-semibold"
-                      onClick={() => {
-                        const title = window.prompt("Series name", item.title)?.trim();
-                        if (!title) return;
-                        const description =
-                          window
-                            .prompt(
-                              "Short series description (optional)",
-                              item.description ?? "",
-                            )
-                            ?.trim() || null;
-                        void series.update(item.id, { title, description });
-                      }}
+                      onClick={() => openEditSeriesEditor(item)}
                     >
                       <FolderKanban className="h-4 w-4" strokeWidth={2} />
                       Edit series
@@ -392,7 +460,257 @@ export function LibraryView() {
           </div>
         )}
       </section>
+
+      {editor ? (
+        <SeriesEditorModal
+          editor={editor}
+          saving={savingSeries}
+          onClose={() => setEditor(null)}
+          onChange={(next) => setEditor((current) => (current ? { ...current, ...next } : current))}
+          onControlsChange={updateEditorControls}
+          onSave={() => void saveSeries()}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function SeriesEditorModal({
+  editor,
+  saving,
+  onClose,
+  onChange,
+  onControlsChange,
+  onSave,
+}: {
+  editor: SeriesEditorState;
+  saving: boolean;
+  onClose: () => void;
+  onChange: (next: Partial<SeriesEditorState>) => void;
+  onControlsChange: (next: Partial<CreativeControls>) => void;
+  onSave: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4 py-8 backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="series-editor-title"
+    >
+      <div
+        className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-700">
+              Series Studio
+            </p>
+            <h2 id="series-editor-title" className="mt-1 text-xl font-bold text-slate-900">
+              {editor.mode === "create" ? "Create Series" : "Edit Series"}
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Shape the title, positioning, and full creative direction in one place.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+            aria-label="Close series editor"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="grid gap-0 overflow-y-auto lg:grid-cols-[1.05fr_0.95fr]">
+          <div className="space-y-5 border-b border-slate-100 p-5 lg:border-b-0 lg:border-r">
+            <div className="space-y-2">
+              <label className="space-y-1">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Series title
+                </span>
+                <input
+                  value={editor.title}
+                  onChange={(event) => onChange({ title: event.target.value })}
+                  placeholder="Name your series"
+                  className="h-12 w-full rounded-2xl border border-slate-200 px-4 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                />
+              </label>
+              <label className="space-y-1">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Description
+                </span>
+                <textarea
+                  rows={4}
+                  value={editor.description}
+                  onChange={(event) => onChange({ description: event.target.value })}
+                  placeholder="Describe the series angle, audience, and promise."
+                  className="w-full resize-none rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                />
+              </label>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <SelectField
+                label="Niche"
+                value={editor.controls.niche}
+                options={NICHE_OPTIONS}
+                onChange={(value) => onControlsChange({ niche: value })}
+              />
+              <SelectField
+                label="Language"
+                value={editor.controls.language}
+                options={LANGUAGE_OPTIONS}
+                onChange={(value) => onControlsChange({ language: value })}
+              />
+              <SelectField
+                label="Voice"
+                value={editor.controls.voiceStyle}
+                options={VOICE_STYLE_OPTIONS}
+                onChange={(value) => onControlsChange({ voiceStyle: value })}
+              />
+              <SelectField
+                label="Music"
+                value={editor.controls.backgroundMusic}
+                options={BACKGROUND_MUSIC_OPTIONS}
+                onChange={(value) => onControlsChange({ backgroundMusic: value })}
+              />
+              <SelectField
+                label="Art Style"
+                value={editor.controls.artStyle}
+                options={ART_STYLE_OPTIONS}
+                onChange={(value) => onControlsChange({ artStyle: value })}
+              />
+              <SelectField
+                label="Captions"
+                value={editor.controls.captionStyle}
+                options={CAPTION_STYLE_OPTIONS}
+                onChange={(value) => onControlsChange({ captionStyle: value })}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-5 p-5">
+            <div className="rounded-[24px] border border-slate-200 bg-[linear-gradient(135deg,rgba(250,245,255,0.96),rgba(255,255,255,1))] p-4">
+              <div className="flex items-center gap-2">
+                <Wand2 className="h-4 w-4 text-violet-700" />
+                <p className="text-sm font-semibold text-slate-900">Creative identity</p>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {[
+                  editor.controls.niche,
+                  editor.controls.language,
+                  editor.controls.voiceStyle,
+                  editor.controls.artStyle,
+                  editor.controls.captionStyle,
+                  editor.controls.backgroundMusic,
+                ].map((item) => (
+                  <span
+                    key={item}
+                    className="rounded-full border border-white bg-white/90 px-3 py-1 text-[11px] font-medium text-slate-700 shadow-sm"
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                Effects
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {EFFECT_OPTIONS.map((effect) => {
+                  const active = editor.controls.effects.includes(effect);
+                  return (
+                    <button
+                      key={effect}
+                      type="button"
+                      onClick={() =>
+                        onControlsChange({
+                          effects: active
+                            ? editor.controls.effects.filter((item) => item !== effect)
+                            : [...editor.controls.effects, effect],
+                        })
+                      }
+                      className={cn(
+                        "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                        active
+                          ? "border-violet-300 bg-violet-100 text-violet-800"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:bg-violet-50",
+                      )}
+                    >
+                      {effect}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <label className="space-y-1">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                Example script
+              </span>
+              <textarea
+                rows={6}
+                value={editor.controls.exampleScript ?? ""}
+                onChange={(event) => onControlsChange({ exampleScript: event.target.value })}
+                placeholder="Paste a reference script so future videos in this series can match tone and pacing."
+                className="w-full resize-none rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-slate-500">
+            Changes here update the series identity, not just a single default label.
+          </p>
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={onSave} disabled={saving || !editor.title.trim()}>
+              <Sparkles className="h-4 w-4" strokeWidth={2} />
+              {saving ? "Saving..." : editor.mode === "create" ? "Create series" : "Save series"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: readonly string[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="space-y-1">
+      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+      >
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
