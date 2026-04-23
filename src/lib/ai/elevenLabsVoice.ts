@@ -38,6 +38,23 @@ function extractScriptText(project: ProjectVoiceRow) {
   return (project.idea?.trim() || project.title?.trim() || "").trim();
 }
 
+function normalizeElevenLabsError(status: number, bodyText: string) {
+  const compact = bodyText.replace(/\s+/g, " ").trim();
+  if (
+    status === 402 &&
+    /paid_plan_required|library voices|free users cannot use library voices/i.test(compact)
+  ) {
+    return "ElevenLabs rejected the selected voice because Voice Library voices require a paid plan. Use an owned/default voice ID or upgrade the ElevenLabs plan.";
+  }
+  if (status === 401) {
+    return "ElevenLabs rejected the API key. Verify ELEVENLABS_API_KEY in the deployed environment.";
+  }
+  if (status === 404) {
+    return "ElevenLabs could not find the configured voice. Verify ELEVENLABS_VOICE_ID.";
+  }
+  return `ElevenLabs voice generation failed (${status}): ${compact.slice(0, 240)}`;
+}
+
 export async function generateElevenLabsAudio(project: ProjectVoiceRow) {
   const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
   const voiceId = process.env.ELEVENLABS_VOICE_ID?.trim();
@@ -68,9 +85,7 @@ export async function generateElevenLabsAudio(project: ProjectVoiceRow) {
 
   if (!response.ok) {
     const textBody = await response.text().catch(() => "");
-    throw new Error(
-      `ElevenLabs voice generation failed (${response.status}): ${textBody.slice(0, 240)}`,
-    );
+    throw new Error(normalizeElevenLabsError(response.status, textBody));
   }
 
   const audioBuffer = Buffer.from(await response.arrayBuffer());
