@@ -151,7 +151,7 @@ export async function POST(req: Request) {
       status: "generating",
       progress: 8,
     })
-    .select("id,title,idea,status,progress,video_url,created_at")
+    .select("id,user_id,title,idea,creative_controls,status,progress,video_url,created_at")
     .single();
 
   if (projectErr || !project) {

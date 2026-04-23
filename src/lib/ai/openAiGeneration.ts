@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { saveProjectImages } from "@/lib/ai/openAiImages";
 import { saveProjectVoice } from "@/lib/ai/elevenLabsVoice";
 import { getTikTokTrendContext } from "@/lib/ai/providerHealth";
 import { PIPELINE_STEPS } from "@/lib/constants";
@@ -6,6 +7,7 @@ import type { CreativeControls, PipelineStepId } from "@/lib/types";
 
 type ProjectGenerationRow = {
   id: string;
+  user_id: string;
   title: string | null;
   idea: string | null;
   creative_controls?: CreativeControls | null;
@@ -354,6 +356,34 @@ export async function runRealProjectGeneration(
 
     const stepError = stepResults.find((result) => result.error)?.error;
     if (stepError) throw stepError;
+
+    if (process.env.OPENAI_API_KEY?.trim() && process.env.HERMIORA_IMAGE_GENERATION !== "off") {
+      try {
+        await saveProjectImages(admin, {
+          id: project.id,
+          user_id: project.user_id,
+          title: generation.metadata.titles[0] || project.title,
+          idea: project.idea,
+          generations: [{ step: "image_prompts", output: generation.image_prompts }],
+        });
+      } catch (imageError) {
+        await admin
+          .from("generations")
+          .update({
+            status: "failed",
+            output: {
+              ...generation.image_prompts,
+              error:
+                imageError instanceof Error
+                  ? imageError.message
+                  : "Image generation failed.",
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq("project_id", project.id)
+          .eq("step", "image_prompts");
+      }
+    }
 
     if (process.env.ELEVENLABS_API_KEY?.trim() && process.env.ELEVENLABS_VOICE_ID?.trim()) {
       try {

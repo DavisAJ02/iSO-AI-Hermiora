@@ -4,9 +4,11 @@ import {
   ensureProjectGenerationOutputs,
   syncProjectGeneration,
 } from "@/lib/projects/generationRunner";
+import { saveProjectImages } from "@/lib/ai/openAiImages";
 import { saveProjectVoice } from "@/lib/ai/elevenLabsVoice";
 import { runRealProjectGeneration } from "@/lib/ai/openAiGeneration";
 import { PIPELINE_STEPS } from "@/lib/constants";
+import { hydrateProjectMediaUrls } from "@/lib/projects/projectMedia";
 import { titleFromIdea } from "@/lib/projects/projectMapping";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createClient } from "@/utils/supabase/server";
@@ -42,7 +44,7 @@ async function getOwnedProject(
 ) {
   return admin
     .from("projects")
-    .select("id,title,idea,creative_controls,status,progress,created_at")
+    .select("id,user_id,title,idea,creative_controls,status,progress,created_at")
     .eq("id", id)
     .eq("user_id", userId)
     .maybeSingle();
@@ -105,7 +107,8 @@ export async function GET(
     );
   }
 
-  return NextResponse.json({ project: freshProject });
+  const hydratedProject = await hydrateProjectMediaUrls(admin, freshProject);
+  return NextResponse.json({ project: hydratedProject });
 }
 
 export async function PATCH(
@@ -251,10 +254,10 @@ export async function PATCH(
         { status: 502 },
       );
     }
-  } else if (body.action === "generate_voice") {
+  } else if (body.action === "generate_images" || body.action === "generate_voice") {
     const { data: projectWithGenerations, error: projectWithGenerationsErr } = await admin
       .from("projects")
-      .select(projectSelect)
+      .select(`user_id,${projectSelect}`)
       .eq("id", id)
       .eq("user_id", user.id)
       .single();
@@ -266,18 +269,34 @@ export async function PATCH(
       );
     }
 
-    try {
-      await saveProjectVoice(admin, projectWithGenerations);
-    } catch (voiceErr) {
-      return NextResponse.json(
-        {
-          error:
-            voiceErr instanceof Error
-              ? voiceErr.message
-              : "Voice generation failed.",
-        },
-        { status: 502 },
-      );
+    if (body.action === "generate_images") {
+      try {
+        await saveProjectImages(admin, projectWithGenerations);
+      } catch (imageErr) {
+        return NextResponse.json(
+          {
+            error:
+              imageErr instanceof Error
+                ? imageErr.message
+                : "Image generation failed.",
+          },
+          { status: 502 },
+        );
+      }
+    } else {
+      try {
+        await saveProjectVoice(admin, projectWithGenerations);
+      } catch (voiceErr) {
+        return NextResponse.json(
+          {
+            error:
+              voiceErr instanceof Error
+                ? voiceErr.message
+                : "Voice generation failed.",
+          },
+          { status: 502 },
+        );
+      }
     }
   } else {
     return NextResponse.json({ error: "Unsupported project action." }, { status: 400 });
@@ -296,7 +315,8 @@ export async function PATCH(
     );
   }
 
-  return NextResponse.json({ project: freshProject });
+  const hydratedProject = await hydrateProjectMediaUrls(admin, freshProject);
+  return NextResponse.json({ project: hydratedProject });
 }
 
 export async function DELETE(

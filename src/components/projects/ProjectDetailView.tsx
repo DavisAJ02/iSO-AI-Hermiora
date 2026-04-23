@@ -52,6 +52,15 @@ type ImagePromptOutput = {
   aspect_ratio?: string;
   negative_prompt?: string;
   prompts?: string[];
+  error?: string;
+  generated_images?: {
+    label?: string;
+    storage_path?: string;
+    signed_url?: string | null;
+    mime_type?: string;
+    prompt?: string;
+    motion_hint?: string;
+  }[];
   shots?: {
     label?: string;
     prompt?: string;
@@ -181,7 +190,16 @@ function VoiceAssetCard({
 function ImagePromptCard({ output }: { output: ImagePromptOutput | undefined }) {
   const legacyPrompts = Array.isArray(output?.prompts) ? output.prompts : [];
   const shots = Array.isArray(output?.shots) ? output.shots : [];
+  const generatedImages = Array.isArray(output?.generated_images) ? output.generated_images : [];
   const hasStructuredShots = shots.length > 0;
+
+  if (output?.error) {
+    return (
+      <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-3 text-xs leading-relaxed text-rose-700">
+        {output.error}
+      </div>
+    );
+  }
 
   if (!output || (!hasStructuredShots && legacyPrompts.length === 0)) {
     return (
@@ -205,11 +223,40 @@ function ImagePromptCard({ output }: { output: ImagePromptOutput | undefined }) 
           </span>
         ) : null}
         <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700">
-          Prompt pack
+          {generatedImages.length > 0 ? "Rendered images" : "Prompt pack"}
         </span>
       </div>
 
-      {hasStructuredShots
+      {generatedImages.length > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {generatedImages.map((image, index) => (
+            <div key={`${image.storage_path ?? "image"}-${index}`} className="space-y-2">
+              {image.signed_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={image.signed_url}
+                  alt={image.label ?? `Generated image ${index + 1}`}
+                  className="aspect-[3/4] w-full rounded-xl border border-slate-200 bg-slate-100 object-cover"
+                />
+              ) : null}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  {image.label ?? `Image ${index + 1}`}
+                </p>
+                {image.prompt ? (
+                  <p className="mt-2 text-xs leading-relaxed text-slate-700">{image.prompt}</p>
+                ) : null}
+                {image.motion_hint ? (
+                  <p className="mt-2 text-[11px] font-medium text-violet-700">{image.motion_hint}</p>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {generatedImages.length === 0
+        ? hasStructuredShots
         ? shots.slice(0, 4).map((shot, index) => (
             <div key={`${shot.label ?? "shot"}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
@@ -230,7 +277,8 @@ function ImagePromptCard({ output }: { output: ImagePromptOutput | undefined }) 
             >
               {prompt}
             </p>
-          ))}
+          ))
+        : null}
 
       {output.negative_prompt ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs leading-relaxed text-amber-800">
@@ -238,9 +286,11 @@ function ImagePromptCard({ output }: { output: ImagePromptOutput | undefined }) 
         </div>
       ) : null}
 
-      <div className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-3 text-[11px] leading-relaxed text-slate-500">
-        Image rendering is not connected yet. This step currently saves style-aware prompts for the future image generation pipeline.
-      </div>
+      {generatedImages.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-3 text-[11px] leading-relaxed text-slate-500">
+          No rendered images yet. Use Generate Images to create visuals from this prompt pack.
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -319,6 +369,7 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
         | "duplicate"
         | "delete"
         | "generate_ai"
+        | "generate_images"
         | "generate_voice",
     ) => {
       if (action === "delete" && !window.confirm("Delete this project?")) return;
@@ -372,6 +423,8 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
             ? "Project published."
             : action === "generate_ai"
               ? "AI generation completed."
+              : action === "generate_images"
+                ? "Image generation completed."
               : action === "generate_voice"
                 ? "Voice generation completed."
               : "Project moved back to ready.",
@@ -585,6 +638,20 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
                 <Wand2 className="h-4 w-4" />
               )}
               Generate AI
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="py-3"
+              disabled={actionBusy != null}
+              onClick={() => void runProjectAction("generate_images")}
+            >
+              {actionBusy === "generate_images" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4" />
+              )}
+              Generate Images
             </Button>
             <Button
               type="button"
