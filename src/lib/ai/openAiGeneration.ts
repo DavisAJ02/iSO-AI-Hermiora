@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { saveProjectVoice } from "@/lib/ai/elevenLabsVoice";
 import { getTikTokTrendContext } from "@/lib/ai/providerHealth";
 import { PIPELINE_STEPS } from "@/lib/constants";
 import type { PipelineStepId } from "@/lib/types";
@@ -268,21 +269,56 @@ export async function runRealProjectGeneration(
   try {
     const generation = await generateViralVideoPackage(project);
     const stepResults = await Promise.all(
-      PIPELINE_STEPS.map((step) =>
-        admin
+      PIPELINE_STEPS.map((step) => {
+        const baseOutput = stepOutput(generation, step.id);
+        const status =
+          step.id === "voice" && process.env.ELEVENLABS_API_KEY?.trim() && process.env.ELEVENLABS_VOICE_ID?.trim()
+            ? "processing"
+            : "done";
+        return admin
           .from("generations")
           .update({
-            status: "done",
-            output: stepOutput(generation, step.id),
+            status,
+            output: baseOutput,
             updated_at: timestamp,
           })
           .eq("project_id", project.id)
-          .eq("step", step.id),
-      ),
+          .eq("step", step.id);
+      }),
     );
 
     const stepError = stepResults.find((result) => result.error)?.error;
     if (stepError) throw stepError;
+
+    if (process.env.ELEVENLABS_API_KEY?.trim() && process.env.ELEVENLABS_VOICE_ID?.trim()) {
+      try {
+        await saveProjectVoice(admin, {
+          id: project.id,
+          title: generation.metadata.titles[0] || project.title,
+          idea: project.idea,
+          generations: [
+            { step: "script", output: generation.script },
+            { step: "voice", output: generation.voice },
+          ],
+        });
+      } catch (voiceError) {
+        await admin
+          .from("generations")
+          .update({
+            status: "failed",
+            output: {
+              ...generation.voice,
+              error:
+                voiceError instanceof Error
+                  ? voiceError.message
+                  : "Voice generation failed.",
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq("project_id", project.id)
+          .eq("step", "voice");
+      }
+    }
 
     await admin
       .from("projects")

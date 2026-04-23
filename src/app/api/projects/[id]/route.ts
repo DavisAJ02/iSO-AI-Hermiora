@@ -4,6 +4,7 @@ import {
   ensureProjectGenerationOutputs,
   syncProjectGeneration,
 } from "@/lib/projects/generationRunner";
+import { saveProjectVoice } from "@/lib/ai/elevenLabsVoice";
 import { runRealProjectGeneration } from "@/lib/ai/openAiGeneration";
 import { PIPELINE_STEPS } from "@/lib/constants";
 import { titleFromIdea } from "@/lib/projects/projectMapping";
@@ -245,6 +246,34 @@ export async function PATCH(
             generationErr instanceof Error
               ? generationErr.message
               : "AI generation failed.",
+        },
+        { status: 502 },
+      );
+    }
+  } else if (body.action === "generate_voice") {
+    const { data: projectWithGenerations, error: projectWithGenerationsErr } = await admin
+      .from("projects")
+      .select(projectSelect)
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (projectWithGenerationsErr || !projectWithGenerations) {
+      return NextResponse.json(
+        { error: projectWithGenerationsErr?.message ?? "Project not found" },
+        { status: projectWithGenerationsErr ? 400 : 404 },
+      );
+    }
+
+    try {
+      await saveProjectVoice(admin, projectWithGenerations);
+    } catch (voiceErr) {
+      return NextResponse.json(
+        {
+          error:
+            voiceErr instanceof Error
+              ? voiceErr.message
+              : "Voice generation failed.",
         },
         { status: 502 },
       );

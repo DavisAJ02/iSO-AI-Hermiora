@@ -7,6 +7,7 @@ import {
   Copy,
   FileText,
   Loader2,
+  Mic2,
   Sparkles,
   Trash2,
   Upload,
@@ -30,6 +31,12 @@ type DetailGenerationRow = {
   status: PipelineJobStatus | string | null;
   output?: unknown;
   updated_at?: string | null;
+};
+
+type VoiceOutput = {
+  audio_base64?: string;
+  mime_type?: string;
+  error?: string;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -131,7 +138,15 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
       : project?.thumbProgress ?? 0;
 
   const runProjectAction = useCallback(
-    async (action: "publish" | "unpublish" | "duplicate" | "delete" | "generate_ai") => {
+    async (
+      action:
+        | "publish"
+        | "unpublish"
+        | "duplicate"
+        | "delete"
+        | "generate_ai"
+        | "generate_voice",
+    ) => {
       if (action === "delete" && !window.confirm("Delete this project?")) return;
 
       setActionBusy(action);
@@ -183,6 +198,8 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
             ? "Project published."
             : action === "generate_ai"
               ? "AI generation completed."
+              : action === "generate_voice"
+                ? "Voice generation completed."
               : "Project moved back to ready.",
         );
       } finally {
@@ -194,6 +211,11 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
 
   const isComplete = project?.status === "ready" || project?.status === "published";
   const publishAction = project?.status === "published" ? "unpublish" : "publish";
+  const voiceOutput = generationByStep.get("voice")?.output as VoiceOutput | undefined;
+  const voiceAudioSrc =
+    voiceOutput?.audio_base64 && voiceOutput?.mime_type
+      ? `data:${voiceOutput.mime_type};base64,${voiceOutput.audio_base64}`
+      : null;
 
   return (
     <div className="flex flex-col gap-5 pb-4 pt-2 md:pt-6">
@@ -325,6 +347,11 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
                           {line}
                         </p>
                       ))}
+                      {step.id === "voice" && voiceAudioSrc && (
+                        <audio controls className="mt-2 w-full" src={voiceAudioSrc}>
+                          Your browser does not support audio playback.
+                        </audio>
+                      )}
                     </div>
                   </Card>
                 );
@@ -346,6 +373,20 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
                 <Wand2 className="h-4 w-4" />
               )}
               Generate AI
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="py-3"
+              disabled={actionBusy != null}
+              onClick={() => void runProjectAction("generate_voice")}
+            >
+              {actionBusy === "generate_voice" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Mic2 className="h-4 w-4" />
+              )}
+              Generate Voice
             </Button>
             <Button
               type="button"
