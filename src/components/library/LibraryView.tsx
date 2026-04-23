@@ -43,6 +43,8 @@ type SeriesEditorState = {
   seriesId: string | null;
   title: string;
   description: string;
+  continuityMode: boolean;
+  storyBible: string;
   controls: CreativeControls;
 };
 
@@ -79,6 +81,8 @@ export function LibraryView() {
       seriesId: null,
       title: "",
       description: "",
+      continuityMode: false,
+      storyBible: "",
       controls: DEFAULT_CREATIVE_CONTROLS,
     });
   };
@@ -89,6 +93,8 @@ export function LibraryView() {
       seriesId: item.id,
       title: item.title,
       description: item.description ?? "",
+      continuityMode: item.continuityMode,
+      storyBible: item.storyBible ?? "",
       controls: item.defaultCreativeControls,
     });
   };
@@ -118,12 +124,16 @@ export function LibraryView() {
         savedSeries = await series.create({
           title: editor.title.trim(),
           description: editor.description.trim() || null,
+          continuityMode: editor.continuityMode,
+          storyBible: editor.storyBible.trim() || null,
           defaultCreativeControls: editor.controls,
         });
       } else if (editor.seriesId) {
         savedSeries = await series.update(editor.seriesId, {
           title: editor.title.trim(),
           description: editor.description.trim() || null,
+          continuityMode: editor.continuityMode,
+          storyBible: editor.storyBible.trim() || null,
           defaultCreativeControls: editor.controls,
         });
       }
@@ -241,9 +251,16 @@ export function LibraryView() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <h2 className="truncate text-base font-bold text-slate-900">{item.title}</h2>
-                          <p className="text-xs font-semibold text-violet-700">
-                            {item.description || defaults.niche}
-                          </p>
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <p className="text-xs font-semibold text-violet-700">
+                              {item.description || defaults.niche}
+                            </p>
+                            {item.continuityMode ? (
+                              <Badge tone="pro" className="normal-case tracking-normal">
+                                Continuation
+                              </Badge>
+                            ) : null}
+                          </div>
                         </div>
                         <button
                           type="button"
@@ -270,6 +287,12 @@ export function LibraryView() {
                           <CheckCircle2 className="h-3 w-3 text-slate-400" />
                           {item.readyCount} ready
                         </span>
+                        {item.continuityMode ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Wand2 className="h-3 w-3 text-slate-400" />
+                            serial story
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -552,6 +575,46 @@ function SeriesEditorModal({
               </label>
             </div>
 
+            <div className="rounded-[24px] border border-slate-200 bg-slate-50/70 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Continuation mode</p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                    Turn this series into a serialized story so AI suggestions and episodes keep the plot moving forward.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onChange({ continuityMode: !editor.continuityMode })}
+                  className={cn(
+                    "relative inline-flex h-8 w-14 shrink-0 rounded-full transition",
+                    editor.continuityMode ? "bg-violet-600" : "bg-slate-300",
+                  )}
+                  aria-pressed={editor.continuityMode}
+                >
+                  <span
+                    className={cn(
+                      "absolute top-1 h-6 w-6 rounded-full bg-white shadow transition",
+                      editor.continuityMode ? "left-7" : "left-1",
+                    )}
+                  />
+                </button>
+              </div>
+
+              <label className="mt-4 block space-y-1">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Story bible
+                </span>
+                <textarea
+                  rows={5}
+                  value={editor.storyBible}
+                  onChange={(event) => onChange({ storyBible: event.target.value })}
+                  placeholder="Describe the world, main character arc, what happened so far, and what must stay consistent across episodes."
+                  className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                />
+              </label>
+            </div>
+
             <div className="grid gap-3 sm:grid-cols-2">
               <SelectField
                 label="Niche"
@@ -606,6 +669,7 @@ function SeriesEditorModal({
                   editor.controls.artStyle,
                   editor.controls.captionStyle,
                   editor.controls.backgroundMusic,
+                  editor.continuityMode ? "Continuation On" : "Standalone Episodes",
                 ].map((item) => (
                   <span
                     key={item}

@@ -32,7 +32,7 @@ export async function GET(req: Request) {
   const admin = createAdminSupabaseClient();
   const { data, error } = await admin
     .from("series")
-    .select("id,title,description,default_creative_controls,created_at")
+    .select("id,title,description,continuity_mode,story_bible,default_creative_controls,created_at")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
@@ -50,14 +50,18 @@ export async function POST(req: Request) {
   }
 
   let body: {
-    title?: string;
-    description?: string | null;
-    defaultCreativeControls?: unknown;
+      title?: string;
+      description?: string | null;
+      continuityMode?: boolean;
+      storyBible?: string | null;
+      defaultCreativeControls?: unknown;
   };
   try {
     body = (await req.json()) as {
       title?: string;
       description?: string | null;
+      continuityMode?: boolean;
+      storyBible?: string | null;
       defaultCreativeControls?: unknown;
     };
   } catch {
@@ -73,6 +77,11 @@ export async function POST(req: Request) {
     typeof body.description === "string" && body.description.trim()
       ? body.description.trim().slice(0, 280)
       : null;
+  const continuityMode = body.continuityMode === true;
+  const storyBible =
+    typeof body.storyBible === "string" && body.storyBible.trim()
+      ? body.storyBible.trim().slice(0, 2000)
+      : null;
 
   const defaultCreativeControls = normalizeCreativeControls(
     body.defaultCreativeControls,
@@ -86,9 +95,11 @@ export async function POST(req: Request) {
       user_id: user.id,
       title,
       description,
+      continuity_mode: continuityMode,
+      story_bible: storyBible,
       default_creative_controls: defaultCreativeControls,
     })
-    .select("id,title,description,default_creative_controls,created_at")
+    .select("id,title,description,continuity_mode,story_bible,default_creative_controls,created_at")
     .single();
 
   if (error || !data) {

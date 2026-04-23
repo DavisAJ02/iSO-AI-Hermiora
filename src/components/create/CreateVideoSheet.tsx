@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, FolderKanban, Mic, Music4, Paperclip, Pin, Sparkles, Wand2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useApp } from "@/context/AppProvider";
 import { ART_STYLE_PRESETS, getArtStylePreset } from "@/lib/ai/artStylePresets";
 import {
@@ -79,6 +79,17 @@ const TEMPLATE_STARTERS: Record<string, string> = {
   History: "A surprising historical fact sequence with a dramatic reveal.",
 };
 
+type SpeechRecognitionConstructor = new () => {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onresult: ((event: { results: { 0: { transcript: string } }[] }) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
 function loadPinnedArtStyles() {
   if (typeof window === "undefined") {
     return [];
@@ -110,6 +121,14 @@ export function CreateVideoSheet() {
   } = useApp();
 
   const [pinnedArtStyles, setPinnedArtStyles] = useState<string[]>(loadPinnedArtStyles);
+  const [isListening, setIsListening] = useState(false);
+  const [toolMessage, setToolMessage] = useState<string | null>(null);
+  const [suggestAlternatives, setSuggestAlternatives] = useState<string[]>([]);
+  const [suggestBusy, setSuggestBusy] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const recognitionRef = useRef<{
+    stop: () => void;
+  } | null>(null);
   const selectedArtStyle = getArtStylePreset(createControls.artStyle);
   const selectedVoiceStyle = VOICE_STYLE_PRESETS.find(
     (preset) => preset.label === createControls.voiceStyle,
@@ -164,16 +183,119 @@ export function CreateVideoSheet() {
   };
 
   const saveCurrentControlsAsSeries = async () => {
-    const title = window.prompt("Series name");
-    if (!title?.trim()) return;
-    const description = window.prompt("Short series description (optional)")?.trim() || null;
+    const title =
+      createIdea.trim().split(":")[0]?.trim() ||
+      selectedSeries?.title ||
+      "New Series";
     const createdSeries = await series.create({
-      title: title.trim(),
-      description,
+      title: title.slice(0, 80),
+      description: createIdea.trim() ? createIdea.trim().slice(0, 280) : null,
+      continuityMode: false,
+      storyBible: null,
       defaultCreativeControls: createControls,
     });
     if (!createdSeries) return;
     setCreateSeriesId(createdSeries.id);
+    setToolMessage(`Series "${createdSeries.title}" saved. You can refine it in Library.`);
+  };
+
+  const toggleVoiceCapture = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const recognitionCtor = (
+      window as Window & {
+        SpeechRecognition?: SpeechRecognitionConstructor;
+        webkitSpeechRecognition?: SpeechRecognitionConstructor;
+      }
+    ).SpeechRecognition ??
+      (
+        window as Window & {
+          webkitSpeechRecognition?: SpeechRecognitionConstructor;
+        }
+      ).webkitSpeechRecognition;
+
+    if (!recognitionCtor) {
+      setToolMessage("Voice dictation is not available in this browser.");
+      return;
+    }
+
+    const baseIdea = createIdea;
+    const recognition = new recognitionCtor();
+    recognition.lang = createControls.language === "French" ? "fr-FR" : "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript?.trim();
+      if (!transcript) return;
+      setCreateIdea(`${baseIdea ? `${baseIdea} ` : ""}${transcript}`.trim());
+      setToolMessage("Voice idea captured.");
+    };
+    recognition.onerror = (event) => {
+      setToolMessage(`Voice capture failed: ${event.error}`);
+    };
+    recognition.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+    };
+    recognition.start();
+    recognitionRef.current = recognition;
+    setIsListening(true);
+    setToolMessage("Listening...");
+  };
+
+  const attachReferenceFile = async (file: File) => {
+    try {
+      const text = await file.text();
+      const trimmed = text.trim().slice(0, 3000);
+      if (!trimmed) {
+        setToolMessage("That file did not contain readable text.");
+        return;
+      }
+
+      setCreateControls({
+        exampleScript: [createControls.exampleScript?.trim(), trimmed].filter(Boolean).join("\n\n"),
+      });
+      setToolMessage(`Attached ${file.name} as reference text.`);
+    } catch {
+      setToolMessage("That file could not be read.");
+    }
+  };
+
+  const requestAiSuggestion = async () => {
+    setSuggestBusy(true);
+    setToolMessage(null);
+    setSuggestAlternatives([]);
+    try {
+      const res = await fetch("/api/ideas/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          currentIdea: createIdea,
+          seriesId: createSeriesId,
+          creativeControls: createControls,
+        }),
+      });
+
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        suggestion?: { primaryIdea?: string; alternatives?: string[]; reasoning?: string };
+      };
+
+      if (!res.ok || !data.suggestion?.primaryIdea) {
+        setToolMessage(data.error ?? "AI could not suggest an idea right now.");
+        return;
+      }
+
+      setCreateIdea(data.suggestion.primaryIdea);
+      setSuggestAlternatives((data.suggestion.alternatives ?? []).slice(0, 3));
+      setToolMessage(data.suggestion.reasoning ?? "AI suggestion ready.");
+    } finally {
+      setSuggestBusy(false);
+    }
   };
 
   if (!ui.createOpen) return null;
@@ -273,13 +395,15 @@ export function CreateVideoSheet() {
                   <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
                     <button
                       type="button"
+                      onClick={toggleVoiceCapture}
                       className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700"
                     >
                       <Mic className="h-3.5 w-3.5" />
-                      Voice
+                      {isListening ? "Stop" : "Voice"}
                     </button>
                     <button
                       type="button"
+                      onClick={() => fileInputRef.current?.click()}
                       className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700"
                     >
                       <Paperclip className="h-3.5 w-3.5" />
@@ -287,13 +411,45 @@ export function CreateVideoSheet() {
                     </button>
                     <button
                       type="button"
+                      onClick={() => void requestAiSuggestion()}
+                      disabled={suggestBusy}
                       className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700"
                     >
                       <Wand2 className="h-3.5 w-3.5" />
-                      AI Suggest
+                      {suggestBusy ? "Thinking..." : "AI Suggest"}
                     </button>
                     <span className="ml-auto text-[11px] text-slate-400">{createIdea.length}/500</span>
                   </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".txt,.md,.json,.csv,text/*"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) {
+                        void attachReferenceFile(file);
+                      }
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                  {toolMessage ? (
+                    <p className="mt-3 text-[11px] font-medium text-violet-700">{toolMessage}</p>
+                  ) : null}
+                  {suggestAlternatives.length > 0 ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {suggestAlternatives.map((idea) => (
+                        <button
+                          key={idea}
+                          type="button"
+                          onClick={() => setCreateIdea(idea)}
+                          className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-semibold text-violet-700 transition hover:bg-violet-100"
+                        >
+                          {idea}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
@@ -405,7 +561,9 @@ export function CreateVideoSheet() {
                           {active ? <Check className="h-4 w-4 text-violet-700" /> : null}
                         </div>
                         <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                          {item.description || `${item.projectCount} videos in this series.`}
+                          {item.continuityMode
+                            ? item.storyBible || "Serialized story continuation is enabled for this series."
+                            : item.description || `${item.projectCount} videos in this series.`}
                         </p>
                       </button>
                     );

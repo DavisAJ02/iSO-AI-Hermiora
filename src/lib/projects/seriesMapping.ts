@@ -5,6 +5,8 @@ export type SeriesRow = {
   id: string;
   title: string | null;
   description?: string | null;
+  continuity_mode?: boolean | null;
+  story_bible?: string | null;
   default_creative_controls?: unknown;
   created_at?: string | null;
 };
@@ -21,6 +23,8 @@ export function mapSeriesRow(
     id: row.id,
     title: row.title?.trim() || "Untitled series",
     description: row.description?.trim() || null,
+    continuityMode: Boolean(row.continuity_mode),
+    storyBible: row.story_bible?.trim() || null,
     defaultCreativeControls: normalizeCreativeControls(
       row.default_creative_controls,
       DEFAULT_CREATIVE_CONTROLS,

@@ -11,6 +11,8 @@ type ProjectGenerationRow = {
   user_id: string;
   title: string | null;
   idea: string | null;
+  series_id?: string | null;
+  series_context?: string | null;
   creative_controls?: CreativeControls | null;
 };
 
@@ -278,6 +280,12 @@ function describeCreativeControls(controls: CreativeControls | null | undefined)
   return parts.join("\n");
 }
 
+function describeSeriesContext(project: ProjectGenerationRow) {
+  return project.series_context?.trim()
+    ? `Series continuity context:\n${project.series_context.trim()}`
+    : "No series continuity context was provided.";
+}
+
 export async function generateViralVideoPackage(project: ProjectGenerationRow) {
   const key = process.env.OPENAI_API_KEY?.trim();
   if (!key) throw new Error("OPENAI_API_KEY is not configured.");
@@ -286,6 +294,7 @@ export async function generateViralVideoPackage(project: ProjectGenerationRow) {
   const idea = project.idea?.trim() || project.title?.trim() || "short-form video idea";
   const trendContext = getTikTokTrendContext();
   const creativeControls = describeCreativeControls(project.creative_controls);
+  const seriesContext = describeSeriesContext(project);
 
   const res = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -303,7 +312,7 @@ export async function generateViralVideoPackage(project: ProjectGenerationRow) {
         },
         {
           role: "user",
-          content: `Create a 35-55 second vertical video package for this idea: ${idea}\n\nTrend context: ${trendContext}\n\nCreative controls:\n${creativeControls}\n\nMake it emotionally sharp, clear for a creator to record, and suitable for a production pipeline. Match the requested language, tone reference, art direction, captions, and effects when they are provided.`,
+          content: `Create a 35-55 second vertical video package for this idea: ${idea}\n\nTrend context: ${trendContext}\n\nCreative controls:\n${creativeControls}\n\n${seriesContext}\n\nMake it emotionally sharp, clear for a creator to record, and suitable for a production pipeline. Match the requested language, tone reference, art direction, captions, effects, and series continuity when they are provided.`,
         },
       ],
       text: {

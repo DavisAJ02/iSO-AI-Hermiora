@@ -54,6 +54,8 @@ interface AppContextValue {
     create: (input: {
       title: string;
       description?: string | null;
+      continuityMode?: boolean;
+      storyBible?: string | null;
       defaultCreativeControls?: CreativeControls;
     }) => Promise<Series | null>;
     update: (
@@ -61,6 +63,8 @@ interface AppContextValue {
       input: {
         title?: string;
         description?: string | null;
+        continuityMode?: boolean;
+        storyBible?: string | null;
         defaultCreativeControls?: CreativeControls;
       },
     ) => Promise<Series | null>;
@@ -429,6 +433,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     async (input: {
       title: string;
       description?: string | null;
+      continuityMode?: boolean;
+      storyBible?: string | null;
       defaultCreativeControls?: CreativeControls;
     }) => {
       const authHeaders = await getMaishaRequestAuthHeaders();
@@ -464,6 +470,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       input: {
         title?: string;
         description?: string | null;
+        continuityMode?: boolean;
+        storyBible?: string | null;
         defaultCreativeControls?: CreativeControls;
       },
     ) => {

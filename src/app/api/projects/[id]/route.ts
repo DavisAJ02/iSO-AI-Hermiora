@@ -10,6 +10,7 @@ import { runRealProjectGeneration } from "@/lib/ai/openAiGeneration";
 import { PIPELINE_STEPS } from "@/lib/constants";
 import { hydrateProjectMediaUrls } from "@/lib/projects/projectMedia";
 import { titleFromIdea } from "@/lib/projects/projectMapping";
+import { loadSeriesContinuityContext } from "@/lib/projects/seriesContinuity";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createClient } from "@/utils/supabase/server";
 
@@ -243,7 +244,13 @@ export async function PATCH(
       );
     }
     try {
-      await runRealProjectGeneration(admin, project);
+      const seriesContext = project.series_id
+        ? await loadSeriesContinuityContext(admin, user.id, project.series_id, project.id)
+        : null;
+      await runRealProjectGeneration(admin, {
+        ...project,
+        series_context: seriesContext?.contextText ?? null,
+      });
     } catch (generationErr) {
       return NextResponse.json(
         {

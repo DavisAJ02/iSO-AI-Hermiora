@@ -7,6 +7,7 @@ import {
   mergeCreativeControls,
   normalizeCreativeControls,
 } from "@/lib/projects/creativeControls";
+import { loadSeriesContinuityContext } from "@/lib/projects/seriesContinuity";
 import { runRealProjectGeneration } from "@/lib/ai/openAiGeneration";
 import { syncUserGeneratingProjects } from "@/lib/projects/generationRunner";
 import { createClient } from "@/utils/supabase/server";
@@ -123,6 +124,7 @@ export async function POST(req: Request) {
 
   let seriesId: string | null = null;
   let effectiveCreativeControls = requestedCreativeControls;
+  let seriesContextText: string | null = null;
 
   if (requestedSeriesId) {
     const { data: series, error: seriesErr } = await admin
@@ -145,6 +147,9 @@ export async function POST(req: Request) {
       normalizeCreativeControls(series.default_creative_controls, DEFAULT_CREATIVE_CONTROLS),
       requestedCreativeControls,
     );
+
+    const seriesContext = await loadSeriesContinuityContext(admin, user.id, series.id);
+    seriesContextText = seriesContext?.contextText ?? null;
   }
 
   const { data: project, error: projectErr } = await admin
@@ -191,7 +196,11 @@ export async function POST(req: Request) {
 
   if (process.env.OPENAI_API_KEY && process.env.HERMIORA_REAL_GENERATION !== "off") {
     try {
-      await runRealProjectGeneration(admin, project);
+      await runRealProjectGeneration(admin, {
+        ...project,
+        series_id: seriesId,
+        series_context: seriesContextText,
+      });
     } catch {
       // The project row records the failed AI generation state for the UI.
     }

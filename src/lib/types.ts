@@ -77,6 +77,8 @@ export interface Series {
   id: string;
   title: string;
   description?: string | null;
+  continuityMode: boolean;
+  storyBible?: string | null;
   defaultCreativeControls: CreativeControls;
   projectCount: number;
   readyCount: number;

@@ -45,12 +45,16 @@ export async function PATCH(
   let body: {
     title?: string;
     description?: string | null;
+    continuityMode?: boolean;
+    storyBible?: string | null;
     defaultCreativeControls?: unknown;
   };
   try {
     body = (await req.json()) as {
       title?: string;
       description?: string | null;
+      continuityMode?: boolean;
+      storyBible?: string | null;
       defaultCreativeControls?: unknown;
     };
   } catch {
@@ -73,6 +77,17 @@ export async function PATCH(
         : null;
   }
 
+  if (body.continuityMode !== undefined) {
+    updates.continuity_mode = body.continuityMode === true;
+  }
+
+  if (body.storyBible !== undefined) {
+    updates.story_bible =
+      typeof body.storyBible === "string" && body.storyBible.trim()
+        ? body.storyBible.trim().slice(0, 2000)
+        : null;
+  }
+
   if (body.defaultCreativeControls !== undefined) {
     updates.default_creative_controls = normalizeCreativeControls(
       body.defaultCreativeControls,
@@ -90,7 +105,7 @@ export async function PATCH(
     .update(updates)
     .eq("id", id)
     .eq("user_id", user.id)
-    .select("id,title,description,default_creative_controls,created_at")
+    .select("id,title,description,continuity_mode,story_bible,default_creative_controls,created_at")
     .single();
 
   if (error || !data) {

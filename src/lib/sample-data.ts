@@ -41,6 +41,8 @@ export const sampleSeries: Series[] = [
     id: "s1",
     title: "Ancient Civilizations",
     description: "History shorts built around myth, power, and collapse.",
+    continuityMode: true,
+    storyBible: "Each episode reveals one civilization secret and ends by teasing the next empire or turning point.",
     defaultCreativeControls: {
       niche: "History",
       language: "English",
@@ -59,6 +61,8 @@ export const sampleSeries: Series[] = [
     id: "s2",
     title: "Mind Hacks",
     description: "Psychology explainers with fast, practical takeaways.",
+    continuityMode: false,
+    storyBible: null,
     defaultCreativeControls: {
       niche: "Psychology",
       language: "English",
@@ -77,6 +81,8 @@ export const sampleSeries: Series[] = [
     id: "s3",
     title: "Crypto Secrets",
     description: "Finance hooks with urgency, velocity, and creator pacing.",
+    continuityMode: false,
+    storyBible: null,
     defaultCreativeControls: {
       niche: "Finance",
       language: "English",
