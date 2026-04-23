@@ -183,6 +183,23 @@ function extractOutputText(response: unknown): string {
   );
 }
 
+function normalizeOpenAiError(status: number, bodyText: string) {
+  const compact = bodyText.replace(/\s+/g, " ").trim();
+  if (
+    status === 429 &&
+    /quota|billing details|insufficient_quota|max(imum)? monthly spend/i.test(compact)
+  ) {
+    return "OpenAI quota is exhausted for this API account or project. Add credits, raise the spend limit, or switch to a funded API project.";
+  }
+  if (status === 401) {
+    return "OpenAI rejected the API key. Verify the deployed OPENAI_API_KEY and project permissions.";
+  }
+  if (status === 403) {
+    return "OpenAI denied access for this request. Check project permissions, model access, and any IP restrictions.";
+  }
+  return `OpenAI generation failed (${status}): ${compact.slice(0, 240)}`;
+}
+
 function stepOutput(generation: ViralGeneration, step: PipelineStepId) {
   return generation[step];
 }
@@ -228,7 +245,7 @@ export async function generateViralVideoPackage(project: ProjectGenerationRow) {
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`OpenAI generation failed (${res.status}): ${text.slice(0, 240)}`);
+    throw new Error(normalizeOpenAiError(res.status, text));
   }
 
   const json = await res.json();
