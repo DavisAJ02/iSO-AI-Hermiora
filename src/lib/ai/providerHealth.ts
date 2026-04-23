@@ -14,7 +14,7 @@ function fail(provider: ProviderHealth["provider"], configured: boolean, message
 }
 
 export async function checkOpenAiHealth(): Promise<ProviderHealth> {
-  const key = process.env.OPENAI_API_KEY;
+  const key = process.env.OPENAI_API_KEY?.trim();
   if (!key) return fail("openai", false, "OPENAI_API_KEY is not configured.");
 
   const res = await fetch("https://api.openai.com/v1/models", {
@@ -30,7 +30,7 @@ export async function checkOpenAiHealth(): Promise<ProviderHealth> {
 }
 
 export async function checkElevenLabsHealth(): Promise<ProviderHealth> {
-  const key = process.env.ELEVENLABS_API_KEY;
+  const key = process.env.ELEVENLABS_API_KEY?.trim();
   if (!key) return fail("elevenlabs", false, "ELEVENLABS_API_KEY is not configured.");
 
   const res = await fetch("https://api.elevenlabs.io/v2/voices?page_size=1", {
@@ -46,8 +46,8 @@ export async function checkElevenLabsHealth(): Promise<ProviderHealth> {
 }
 
 export async function getTikTokClientAccessToken() {
-  const clientKey = process.env.TIKTOK_CLIENT_KEY;
-  const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
+  const clientKey = process.env.TIKTOK_CLIENT_KEY?.trim();
+  const clientSecret = process.env.TIKTOK_CLIENT_SECRET?.trim();
   if (!clientKey || !clientSecret) {
     return { ok: false, token: "", message: "TikTok client key/secret are not configured." };
   }
@@ -87,7 +87,7 @@ export async function checkTikTokHealth(): Promise<ProviderHealth> {
 export function getTikTokTrendContext() {
   const manualContext = process.env.TIKTOK_TREND_CONTEXT?.trim();
   if (manualContext) return manualContext;
-  if (process.env.TIKTOK_SANDBOX === "true") {
+  if (process.env.TIKTOK_SANDBOX?.trim() === "true") {
     return "TikTok sandbox is enabled. Use niche-aware short-form patterns; live trend data is not guaranteed in sandbox.";
   }
   return "No live TikTok trend context configured yet.";

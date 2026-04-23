@@ -205,10 +205,10 @@ function stepOutput(generation: ViralGeneration, step: PipelineStepId) {
 }
 
 export async function generateViralVideoPackage(project: ProjectGenerationRow) {
-  const key = process.env.OPENAI_API_KEY;
+  const key = process.env.OPENAI_API_KEY?.trim();
   if (!key) throw new Error("OPENAI_API_KEY is not configured.");
 
-  const model = process.env.OPENAI_GENERATION_MODEL || "gpt-4.1-mini";
+  const model = process.env.OPENAI_GENERATION_MODEL?.trim() || "gpt-4.1-mini";
   const idea = project.idea?.trim() || project.title?.trim() || "short-form video idea";
   const trendContext = getTikTokTrendContext();
 
