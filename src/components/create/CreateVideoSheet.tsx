@@ -2,8 +2,8 @@
 
 import { Mic, Paperclip, Sparkles, Wand2 } from "lucide-react";
 import { useApp } from "@/context/AppProvider";
+import { ART_STYLE_PRESETS, getArtStylePreset } from "@/lib/ai/artStylePresets";
 import {
-  ART_STYLE_OPTIONS,
   CAPTION_STYLE_OPTIONS,
   EFFECT_OPTIONS,
   LANGUAGE_OPTIONS,
@@ -25,6 +25,7 @@ export function CreateVideoSheet() {
     startGeneration,
     generation,
   } = useApp();
+  const selectedArtStyle = getArtStylePreset(createControls.artStyle);
 
   if (!ui.createOpen) return null;
 
@@ -191,17 +192,9 @@ export function CreateVideoSheet() {
                 <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                   Art style
                 </span>
-                <select
-                  value={createControls.artStyle}
-                  onChange={(e) => setCreateControls({ artStyle: e.target.value })}
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
-                >
-                  {ART_STYLE_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
+                <div className="rounded-xl border border-violet-200 bg-violet-50/60 px-3 py-3 text-sm text-violet-900">
+                  {selectedArtStyle?.label ?? createControls.artStyle}
+                </div>
               </label>
 
               <label className="space-y-1 sm:col-span-2">
@@ -220,6 +213,72 @@ export function CreateVideoSheet() {
                   ))}
                 </select>
               </label>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Visual art style picker
+                </p>
+                {selectedArtStyle ? (
+                  <span className="text-[11px] font-medium text-violet-700">
+                    {selectedArtStyle.summary}
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
+                {ART_STYLE_PRESETS.map((preset) => {
+                  const active = preset.label === createControls.artStyle;
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => setCreateControls({ artStyle: preset.label })}
+                      className={cn(
+                        "group shrink-0 text-left",
+                        "w-[168px]",
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "overflow-hidden rounded-[22px] border bg-white shadow-sm transition",
+                          active
+                            ? "border-violet-300 ring-2 ring-violet-200"
+                            : "border-slate-200 hover:border-violet-200 hover:shadow-md",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "relative aspect-[3/5] bg-gradient-to-br",
+                            preset.previewClass,
+                          )}
+                        >
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.45),transparent_28%),radial-gradient(circle_at_80%_25%,rgba(255,255,255,0.35),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(15,23,42,0.18))]" />
+                          <div className="absolute bottom-0 left-0 right-0 p-3">
+                            <div className="rounded-2xl bg-white/86 px-3 py-2 backdrop-blur">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                                {preset.tags.join(" • ")}
+                              </p>
+                              <p className="mt-1 text-xs font-medium leading-relaxed text-slate-700">
+                                {preset.summary}
+                              </p>
+                            </div>
+                          </div>
+                          {active ? (
+                            <div className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-violet-600 text-sm font-bold text-white shadow-lg">
+                              ✓
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="px-3 py-3">
+                          <p className="text-lg font-semibold text-slate-900">{preset.label}</p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div>
