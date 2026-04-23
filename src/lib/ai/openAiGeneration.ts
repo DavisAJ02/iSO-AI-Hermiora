@@ -22,6 +22,7 @@ type ViralGeneration = {
     voice_style: string;
     art_style: string;
     caption_style: string;
+    background_music: string;
     effects: string[];
     style_reference: string;
     titles: string[];
@@ -95,6 +96,7 @@ const generationSchema = {
         "voice_style",
         "art_style",
         "caption_style",
+        "background_music",
         "effects",
         "style_reference",
         "titles",
@@ -107,6 +109,7 @@ const generationSchema = {
         voice_style: { type: "string" },
         art_style: { type: "string" },
         caption_style: { type: "string" },
+        background_music: { type: "string" },
         effects: { type: "array", items: { type: "string" } },
         style_reference: { type: "string" },
         titles: { type: "array", items: { type: "string" } },
@@ -265,6 +268,7 @@ function describeCreativeControls(controls: CreativeControls | null | undefined)
     `Art style: ${controls.artStyle}`,
     artStylePreset ? `Art style blueprint: ${artStylePreset.promptGuide}` : null,
     `Caption style: ${controls.captionStyle}`,
+    `Background music: ${controls.backgroundMusic}`,
     controls.effects.length > 0 ? `Effects: ${controls.effects.join(", ")}` : null,
     controls.exampleScript?.trim()
       ? `Example script to match tone: ${controls.exampleScript.trim()}`

@@ -18,10 +18,13 @@ import type {
   PipelineStepId,
   Project,
   PlanTier,
+  Series,
 } from "@/lib/types";
 import { PIPELINE_STEPS } from "@/lib/constants";
 import { getMaishaRequestAuthHeaders } from "@/lib/payments/maishaClientAuth";
 import { mapProjectRow, type ProjectRow } from "@/lib/projects/projectMapping";
+import { mapSeriesRow, type SeriesRow } from "@/lib/projects/seriesMapping";
+import { DEFAULT_CREATIVE_CONTROLS } from "@/lib/projects/creativeControls";
 
 type SocialId = "tiktok" | "instagram" | "youtube";
 
@@ -30,6 +33,8 @@ interface AppContextValue {
   setIdea: (v: string) => void;
   createIdea: string;
   setCreateIdea: (v: string) => void;
+  createSeriesId: string | null;
+  setCreateSeriesId: (id: string | null) => void;
   createControls: CreativeControls;
   setCreateControls: (next: Partial<CreativeControls>) => void;
   generation: GenerationState;
@@ -40,6 +45,27 @@ interface AppContextValue {
     loading: boolean;
     error: string | null;
     refresh: () => Promise<void>;
+  };
+  series: {
+    items: Series[];
+    loading: boolean;
+    error: string | null;
+    refresh: () => Promise<void>;
+    create: (input: {
+      title: string;
+      description?: string | null;
+      defaultCreativeControls?: CreativeControls;
+    }) => Promise<Series | null>;
+    update: (
+      id: string,
+      input: {
+        title?: string;
+        description?: string | null;
+        defaultCreativeControls?: CreativeControls;
+      },
+    ) => Promise<Series | null>;
+    remove: (id: string) => Promise<boolean>;
+    applyToCreate: (id: string | null) => void;
   };
   profile: {
     name: string;
@@ -97,16 +123,6 @@ const initialGeneration: GenerationState = {
   statusText: "Queued…",
 };
 
-const initialCreativeControls: CreativeControls = {
-  niche: "Storytelling",
-  language: "English",
-  voiceStyle: "Narration",
-  artStyle: "Realism",
-  captionStyle: "Bold Stroke",
-  effects: ["Animated Hook"],
-  exampleScript: "",
-};
-
 function stepIndex(id: PipelineStepId) {
   return PIPELINE_STEPS.findIndex((s) => s.id === id);
 }
@@ -151,12 +167,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const [idea, setIdea] = useState("");
   const [createIdea, setCreateIdea] = useState("");
+  const [createSeriesId, setCreateSeriesId] = useState<string | null>(null);
   const [createControls, setCreateControlsState] =
-    useState<CreativeControls>(initialCreativeControls);
+    useState<CreativeControls>(DEFAULT_CREATIVE_CONTROLS);
   const [generation, setGeneration] = useState<GenerationState>(initialGeneration);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectsError, setProjectsError] = useState<string | null>(null);
+  const [series, setSeries] = useState<Series[]>([]);
+  const [seriesLoading, setSeriesLoading] = useState(false);
+  const [seriesError, setSeriesError] = useState<string | null>(null);
 
   const [defaultVoice, setDefaultVoice] = useState("Dramatic Male");
   const [videoStyle, setVideoStyle] = useState("Cinematic");
@@ -284,6 +304,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [status, user?.id]);
 
+  const refreshSeries = useCallback(async () => {
+    if (status !== "authenticated" || !user?.id) {
+      setSeries([]);
+      setSeriesError(null);
+      return;
+    }
+
+    setSeriesLoading(true);
+    try {
+      const authHeaders = await getMaishaRequestAuthHeaders();
+      const res = await fetch("/api/series", {
+        credentials: "same-origin",
+        headers: authHeaders,
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setSeriesError(data.error ?? "Series could not be loaded.");
+        return;
+      }
+
+      const data = (await res.json()) as { series?: SeriesRow[] };
+      setSeries((data.series ?? []).map((row) => mapSeriesRow(row)));
+      setSeriesError(null);
+    } finally {
+      setSeriesLoading(false);
+    }
+  }, [status, user?.id]);
+
   const loadPlanFromPaymentReturn = useCallback(async () => {
     const url = new URL(window.location.href);
     const isBillingReturn = url.searchParams.get("billing") === "success";
@@ -331,9 +381,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const id = window.setTimeout(() => {
       void loadPlanFromProfile();
       void refreshProjects();
+      void refreshSeries();
     }, 0);
     return () => window.clearTimeout(id);
-  }, [loadPlanFromProfile, refreshProjects]);
+  }, [loadPlanFromProfile, refreshProjects, refreshSeries]);
 
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -347,6 +398,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (document.visibilityState === "visible") {
         void loadPlanFromProfile();
         void refreshProjects();
+        void refreshSeries();
       }
     };
     document.addEventListener("visibilitychange", onVisible);
@@ -355,7 +407,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
-  }, [loadPlanFromProfile, refreshProjects]);
+  }, [loadPlanFromProfile, refreshProjects, refreshSeries]);
 
   useEffect(() => {
     if (!projects.some((project) => project.status === "generating")) return;
@@ -372,6 +424,144 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const setCreateControls = useCallback((next: Partial<CreativeControls>) => {
     setCreateControlsState((current) => ({ ...current, ...next }));
   }, []);
+
+  const createSeriesItem = useCallback(
+    async (input: {
+      title: string;
+      description?: string | null;
+      defaultCreativeControls?: CreativeControls;
+    }) => {
+      const authHeaders = await getMaishaRequestAuthHeaders();
+      const res = await fetch("/api/series", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify(input),
+      });
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setSeriesError(data.error ?? "Series could not be created.");
+        return null;
+      }
+
+      const data = (await res.json()) as { series?: SeriesRow };
+      if (!data.series) return null;
+      const createdSeries = mapSeriesRow(data.series);
+      setSeries((current) => [createdSeries, ...current]);
+      setSeriesError(null);
+      return createdSeries;
+    },
+    [],
+  );
+
+  const updateSeriesItem = useCallback(
+    async (
+      id: string,
+      input: {
+        title?: string;
+        description?: string | null;
+        defaultCreativeControls?: CreativeControls;
+      },
+    ) => {
+      const authHeaders = await getMaishaRequestAuthHeaders();
+      const res = await fetch(`/api/series/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify(input),
+      });
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        setSeriesError(data.error ?? "Series could not be updated.");
+        return null;
+      }
+
+      const data = (await res.json()) as { series?: SeriesRow };
+      if (!data.series) return null;
+      const updatedSeries = mapSeriesRow(data.series);
+      setSeries((current) =>
+        current.map((item) => (item.id === id ? { ...item, ...updatedSeries } : item)),
+      );
+      setProjects((current) =>
+        current.map((project) =>
+          project.seriesId === id
+            ? { ...project, seriesTitle: updatedSeries.title }
+            : project,
+        ),
+      );
+      setSeriesError(null);
+      return updatedSeries;
+    },
+    [],
+  );
+
+  const removeSeriesItem = useCallback(async (id: string) => {
+    const authHeaders = await getMaishaRequestAuthHeaders();
+    const res = await fetch(`/api/series/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      credentials: "same-origin",
+      headers: authHeaders,
+    });
+
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      setSeriesError(data.error ?? "Series could not be deleted.");
+      return false;
+    }
+
+    setSeries((current) => current.filter((item) => item.id !== id));
+    setProjects((current) =>
+      current.map((project) =>
+        project.seriesId === id
+          ? { ...project, seriesId: null, seriesTitle: null }
+          : project,
+      ),
+    );
+    setSeriesError(null);
+    if (createSeriesId === id) {
+      setCreateSeriesId(null);
+    }
+    return true;
+  }, [createSeriesId]);
+
+  const applySeriesToCreate = useCallback(
+    (id: string | null) => {
+      if (!id) {
+        setCreateSeriesId(null);
+        setCreateControlsState(DEFAULT_CREATIVE_CONTROLS);
+        return;
+      }
+
+      const selected = series.find((item) => item.id === id);
+      if (!selected) return;
+      setCreateSeriesId(id);
+      setCreateControlsState(selected.defaultCreativeControls);
+      setCreateOpen(true);
+    },
+    [series],
+  );
+
+  const seriesWithMetrics = useMemo(
+    () =>
+      series.map((item) => {
+        const related = projects.filter((project) => project.seriesId === item.id);
+        return {
+          ...item,
+          projectCount: related.length,
+          readyCount: related.filter((project) => project.status === "ready").length,
+          generatingCount: related.filter((project) => project.status === "generating").length,
+        };
+      }),
+    [projects, series],
+  );
 
   const startGeneration = useCallback(
     async (sourceIdea?: string) => {
@@ -394,7 +584,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             ...authHeaders,
           },
           credentials: "same-origin",
-          body: JSON.stringify({ idea: text, creativeControls: createControls }),
+          body: JSON.stringify({
+            idea: text,
+            creativeControls: createControls,
+            seriesId: createSeriesId,
+          }),
         });
 
         if (!res.ok) {
@@ -428,7 +622,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
       }
     },
-    [createControls, idea, loadPlanFromProfile, refreshProjects],
+    [createControls, createSeriesId, idea, loadPlanFromProfile, refreshProjects],
   );
   const toggleSocial = useCallback((id: SocialId) => {
     setSocial((s) => ({ ...s, [id]: !s[id] }));
@@ -440,6 +634,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setIdea,
       createIdea,
       setCreateIdea,
+      createSeriesId,
+      setCreateSeriesId,
       createControls,
       setCreateControls,
       generation,
@@ -450,6 +646,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         loading: projectsLoading,
         error: projectsError,
         refresh: refreshProjects,
+      },
+      series: {
+        items: seriesWithMetrics,
+        loading: seriesLoading,
+        error: seriesError,
+        refresh: refreshSeries,
+        create: createSeriesItem,
+        update: updateSeriesItem,
+        remove: removeSeriesItem,
+        applyToCreate: applySeriesToCreate,
       },
       profile: {
         name: savedProfileName,
@@ -503,6 +709,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [
       idea,
       createIdea,
+      createSeriesId,
       createControls,
       generation,
       startGeneration,
@@ -511,6 +718,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       projectsLoading,
       projectsError,
       refreshProjects,
+      seriesWithMetrics,
+      seriesLoading,
+      seriesError,
+      refreshSeries,
+      createSeriesItem,
+      updateSeriesItem,
+      removeSeriesItem,
+      applySeriesToCreate,
       defaultVoice,
       videoStyle,
       autoCaptions,

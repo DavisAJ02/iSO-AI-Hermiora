@@ -16,7 +16,7 @@ import { createClient } from "@/utils/supabase/server";
 export const runtime = "nodejs";
 
 const projectSelect =
-  "id,title,idea,creative_controls,status,progress,video_url,created_at,generations(step,status,output,updated_at)";
+  "id,title,idea,creative_controls,series_id,series(title),status,progress,video_url,created_at,generations(step,status,output,updated_at)";
 
 function getAuthHeader(req: Request): string | null {
   return req.headers.get("Authorization") ?? req.headers.get("authorization");
@@ -44,7 +44,7 @@ async function getOwnedProject(
 ) {
   return admin
     .from("projects")
-    .select("id,user_id,title,idea,creative_controls,status,progress,created_at")
+    .select("id,user_id,title,idea,creative_controls,series_id,status,progress,created_at")
     .eq("id", id)
     .eq("user_id", userId)
     .maybeSingle();
@@ -197,6 +197,7 @@ export async function PATCH(
         title,
         idea,
         creative_controls: project.creative_controls ?? null,
+        series_id: project.series_id ?? null,
         status: "draft",
         progress: 0,
       })

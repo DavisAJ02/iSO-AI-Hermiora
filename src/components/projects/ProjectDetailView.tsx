@@ -502,6 +502,11 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
                   <p className="mt-1 text-xs text-slate-500">
                     {project.idea ?? "No source idea saved."}
                   </p>
+                  {project.seriesTitle ? (
+                    <p className="mt-2 inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700">
+                      Series: {project.seriesTitle}
+                    </p>
+                  ) : null}
                 </div>
                 <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
                   <Clock className="h-3.5 w-3.5" />
@@ -539,6 +544,7 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
                     project.creativeControls.voiceStyle,
                     project.creativeControls.artStyle,
                     project.creativeControls.captionStyle,
+                    project.creativeControls.backgroundMusic,
                     ...project.creativeControls.effects,
                   ]
                     .filter(Boolean)
@@ -554,6 +560,12 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
                 {project.creativeControls.exampleScript?.trim() ? (
                   <div className="rounded-xl bg-slate-50 px-3 py-3 text-xs leading-relaxed text-slate-700">
                     {project.creativeControls.exampleScript.trim()}
+                  </div>
+                ) : null}
+                {project.seriesTitle ? (
+                  <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-3 text-xs leading-relaxed text-violet-800">
+                    This project belongs to <span className="font-semibold">{project.seriesTitle}</span>
+                    {" "}and inherits its saved direction where applicable.
                   </div>
                 ) : null}
               </Card>

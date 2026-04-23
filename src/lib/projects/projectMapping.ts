@@ -20,6 +20,8 @@ export type ProjectRow = {
   title: string | null;
   idea: string | null;
   creative_controls?: CreativeControls | null;
+  series_id?: string | null;
+  series?: { title?: string | null } | { title?: string | null }[] | null;
   status: string | null;
   progress: number | null;
   video_url?: string | null;
@@ -128,6 +130,9 @@ export function mapProjectRow(row: ProjectRow): Project {
   const status = normalizeProjectStatus(row.status);
   const generationSteps = mapGenerationSteps(row.generations);
   const progress = Number(row.progress ?? 0);
+  const seriesTitle = Array.isArray(row.series)
+    ? row.series[0]?.title?.trim() || null
+    : row.series?.title?.trim() || null;
   return {
     id: row.id,
     title: row.title?.trim() || titleFromIdea(row.idea ?? ""),
@@ -138,6 +143,8 @@ export function mapProjectRow(row: ProjectRow): Project {
     thumbProgress: status === "generating" ? progress : undefined,
     idea: row.idea,
     creativeControls: row.creative_controls ?? null,
+    seriesId: row.series_id ?? null,
+    seriesTitle,
     createdAt: row.created_at,
     currentStep: currentStepFromRows(generationSteps, progress, status),
     generationSteps,

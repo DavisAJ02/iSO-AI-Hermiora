@@ -77,6 +77,17 @@ export const CAPTION_STYLE_OPTIONS = [
   "Creator Pop",
 ] as const;
 
+export const BACKGROUND_MUSIC_OPTIONS = [
+  "No Music",
+  "Ambient Pulse",
+  "Cinematic Tension",
+  "Inspiring Rise",
+  "Dark Pulse",
+  "Luxury Trap",
+  "Mythic Drums",
+  "Lo-fi Focus",
+] as const;
+
 export const EFFECT_OPTIONS = [
   "Animated Hook",
   "Shake Effect",

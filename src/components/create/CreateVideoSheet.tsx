@@ -1,10 +1,11 @@
 "use client";
 
-import { Check, Mic, Paperclip, Pin, Sparkles, Wand2 } from "lucide-react";
+import { Check, FolderKanban, Mic, Music4, Paperclip, Pin, Sparkles, Wand2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useApp } from "@/context/AppProvider";
 import { ART_STYLE_PRESETS, getArtStylePreset } from "@/lib/ai/artStylePresets";
 import {
+  BACKGROUND_MUSIC_OPTIONS,
   EFFECT_OPTIONS,
   LANGUAGE_OPTIONS,
   NICHE_OPTIONS,
@@ -98,11 +99,14 @@ export function CreateVideoSheet() {
   const {
     createIdea,
     setCreateIdea,
+    createSeriesId,
+    setCreateSeriesId,
     createControls,
     setCreateControls,
     ui,
     startGeneration,
     generation,
+    series,
   } = useApp();
 
   const [pinnedArtStyles, setPinnedArtStyles] = useState<string[]>(loadPinnedArtStyles);
@@ -113,12 +117,14 @@ export function CreateVideoSheet() {
   const selectedCaptionStyle = CAPTION_STYLE_PRESETS.find(
     (preset) => preset.label === createControls.captionStyle,
   );
+  const selectedSeries = series.items.find((item) => item.id === createSeriesId) ?? null;
   const directionPills = [
     createControls.niche,
     createControls.language,
     createControls.voiceStyle,
     createControls.captionStyle,
     createControls.artStyle,
+    createControls.backgroundMusic,
     ...createControls.effects.slice(0, 2),
   ].filter(Boolean);
 
@@ -155,6 +161,19 @@ export function CreateVideoSheet() {
     }
 
     setCreateIdea(`${label}: ${trimmed}`);
+  };
+
+  const saveCurrentControlsAsSeries = async () => {
+    const title = window.prompt("Series name");
+    if (!title?.trim()) return;
+    const description = window.prompt("Short series description (optional)")?.trim() || null;
+    const createdSeries = await series.create({
+      title: title.trim(),
+      description,
+      defaultCreativeControls: createControls,
+    });
+    if (!createdSeries) return;
+    setCreateSeriesId(createdSeries.id);
   };
 
   if (!ui.createOpen) return null;
@@ -207,8 +226,17 @@ export function CreateVideoSheet() {
                   Dial in the niche, voice, captions, and visual treatment before we generate.
                 </p>
               </div>
-              <div className="rounded-full border border-violet-200 bg-white px-3 py-1 text-[11px] font-semibold text-violet-700">
-                {selectedArtStyle?.label ?? createControls.artStyle} look
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <div className="rounded-full border border-violet-200 bg-white px-3 py-1 text-[11px] font-semibold text-violet-700">
+                  {selectedArtStyle?.label ?? createControls.artStyle} look
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void saveCurrentControlsAsSeries()}
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-700 transition hover:border-violet-200 hover:text-violet-700"
+                >
+                  Save as series
+                </button>
               </div>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -325,6 +353,66 @@ export function CreateVideoSheet() {
                 </label>
               </div>
 
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    Series
+                  </p>
+                  {selectedSeries ? (
+                    <span className="text-[11px] font-medium text-violet-700">
+                      {selectedSeries.projectCount} videos
+                    </span>
+                  ) : null}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setCreateSeriesId(null)}
+                    className={cn(
+                      "rounded-2xl border px-4 py-4 text-left transition",
+                      !selectedSeries
+                        ? "border-violet-300 bg-violet-50 ring-2 ring-violet-200"
+                        : "border-slate-200 bg-white hover:border-violet-200 hover:bg-violet-50/40",
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold text-slate-900">Standalone project</p>
+                      {!selectedSeries ? <Check className="h-4 w-4 text-violet-700" /> : null}
+                    </div>
+                    <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                      Build this video without linking it to a series.
+                    </p>
+                  </button>
+                  {series.items.map((item) => {
+                    const active = item.id === createSeriesId;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setCreateSeriesId(item.id);
+                          setCreateControls(item.defaultCreativeControls);
+                        }}
+                        className={cn(
+                          "rounded-2xl border px-4 py-4 text-left transition",
+                          active
+                            ? "border-violet-300 bg-violet-50 ring-2 ring-violet-200"
+                            : "border-slate-200 bg-white hover:border-violet-200 hover:bg-violet-50/40",
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                          {active ? <Check className="h-4 w-4 text-violet-700" /> : null}
+                        </div>
+                        <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                          {item.description || `${item.projectCount} videos in this series.`}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
                   Image effects
@@ -351,6 +439,50 @@ export function CreateVideoSheet() {
                         )}
                       >
                         {effect}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    Background music
+                  </p>
+                  <span className="text-[11px] font-medium text-violet-700">
+                    {createControls.backgroundMusic}
+                  </span>
+                </div>
+                <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                  {BACKGROUND_MUSIC_OPTIONS.map((option) => {
+                    const active = option === createControls.backgroundMusic;
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => setCreateControls({ backgroundMusic: option })}
+                        className={cn(
+                          "rounded-2xl border px-4 py-4 text-left transition",
+                          active
+                            ? "border-violet-300 bg-violet-50 ring-2 ring-violet-200"
+                            : "border-slate-200 bg-white hover:border-violet-200 hover:bg-violet-50/40",
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="inline-flex items-center gap-2">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+                              <Music4 className="h-4 w-4" />
+                            </span>
+                            <p className="text-sm font-semibold text-slate-900">{option}</p>
+                          </div>
+                          {active ? <Check className="h-4 w-4 text-violet-700" /> : null}
+                        </div>
+                        <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                          {option === "No Music"
+                            ? "Leave the soundtrack empty for voice-only edits."
+                            : "Save this soundtrack direction with the project and render prep."}
+                        </p>
                       </button>
                     );
                   })}
@@ -498,6 +630,23 @@ export function CreateVideoSheet() {
                   })}
                 </div>
               </div>
+
+              {selectedSeries ? (
+                <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="inline-flex items-center gap-2">
+                      <FolderKanban className="h-4 w-4 text-violet-700" />
+                      <p className="text-sm font-semibold text-slate-900">{selectedSeries.title}</p>
+                    </div>
+                    <span className="rounded-full border border-violet-200 bg-white px-2 py-1 text-[11px] font-semibold text-violet-700">
+                      Series linked
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                    New videos in this series inherit its default direction, including music and style presets.
+                  </p>
+                </div>
+              ) : null}
             </div>
           </div>
 

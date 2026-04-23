@@ -31,6 +31,7 @@ export interface CreativeControls {
   voiceStyle: string;
   artStyle: string;
   captionStyle: string;
+  backgroundMusic: string;
   effects: string[];
   exampleScript?: string;
 }
@@ -65,6 +66,8 @@ export interface Project {
   thumbProgress?: number;
   idea?: string | null;
   creativeControls?: CreativeControls | null;
+  seriesId?: string | null;
+  seriesTitle?: string | null;
   createdAt?: string;
   currentStep?: PipelineStepId;
   generationSteps?: GenerationStepState[];
@@ -73,17 +76,12 @@ export interface Project {
 export interface Series {
   id: string;
   title: string;
-  category: string;
-  videoCount: number;
-  durationLabel: string;
-  voice: string;
-  thumbClass: string;
-  viewsLabel: string;
-  likesLabel: string;
-  avgWatchLabel: string;
-  engagementPct: number;
-  /** Tailwind gradient classes for engagement bar fill */
-  engagementBarClass: string;
+  description?: string | null;
+  defaultCreativeControls: CreativeControls;
+  projectCount: number;
+  readyCount: number;
+  generatingCount: number;
+  createdAt?: string;
 }
 
 export interface Testimonial {
