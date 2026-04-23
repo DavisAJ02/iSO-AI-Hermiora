@@ -40,7 +40,14 @@ type ViralGeneration = {
     }[];
   };
   image_prompts: {
-    prompts: string[];
+    art_style: string;
+    aspect_ratio: string;
+    negative_prompt: string;
+    shots: {
+      label: string;
+      prompt: string;
+      motion_hint: string;
+    }[];
   };
   voice: {
     voice_style: string;
@@ -144,9 +151,24 @@ const generationSchema = {
     image_prompts: {
       type: "object",
       additionalProperties: false,
-      required: ["prompts"],
+      required: ["art_style", "aspect_ratio", "negative_prompt", "shots"],
       properties: {
-        prompts: { type: "array", items: { type: "string" } },
+        art_style: { type: "string" },
+        aspect_ratio: { type: "string" },
+        negative_prompt: { type: "string" },
+        shots: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["label", "prompt", "motion_hint"],
+            properties: {
+              label: { type: "string" },
+              prompt: { type: "string" },
+              motion_hint: { type: "string" },
+            },
+          },
+        },
       },
     },
     voice: {
@@ -268,7 +290,7 @@ export async function generateViralVideoPackage(project: ProjectGenerationRow) {
         {
           role: "system",
           content:
-            "You are Hermiora AI, a senior short-form video strategist. Generate viral-style content that is specific, ethical, punchy, and optimized for TikTok/Reels/Shorts. Return only JSON matching the schema.",
+            "You are Hermiora AI, a senior short-form video strategist. Generate viral-style content that is specific, ethical, punchy, and optimized for TikTok/Reels/Shorts. Return only JSON matching the schema. Make the image_prompts step visually specific: each shot prompt must clearly reflect the requested art style, visual effects, and storytelling tone.",
         },
         {
           role: "user",

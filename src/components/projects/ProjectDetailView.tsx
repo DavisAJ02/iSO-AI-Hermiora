@@ -47,6 +47,18 @@ type VoiceOutput = {
   fallback_voice_category?: string;
 };
 
+type ImagePromptOutput = {
+  art_style?: string;
+  aspect_ratio?: string;
+  negative_prompt?: string;
+  prompts?: string[];
+  shots?: {
+    label?: string;
+    prompt?: string;
+    motion_hint?: string;
+  }[];
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -162,6 +174,73 @@ function VoiceAssetCard({
       <audio controls className="w-full" src={audioSrc}>
         Your browser does not support audio playback.
       </audio>
+    </div>
+  );
+}
+
+function ImagePromptCard({ output }: { output: ImagePromptOutput | undefined }) {
+  const legacyPrompts = Array.isArray(output?.prompts) ? output.prompts : [];
+  const shots = Array.isArray(output?.shots) ? output.shots : [];
+  const hasStructuredShots = shots.length > 0;
+
+  if (!output || (!hasStructuredShots && legacyPrompts.length === 0)) {
+    return (
+      <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-700">
+        Waiting for this step to finish.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-2">
+        {output.art_style ? (
+          <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+            {output.art_style}
+          </span>
+        ) : null}
+        {output.aspect_ratio ? (
+          <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+            {output.aspect_ratio}
+          </span>
+        ) : null}
+        <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700">
+          Prompt pack
+        </span>
+      </div>
+
+      {hasStructuredShots
+        ? shots.slice(0, 4).map((shot, index) => (
+            <div key={`${shot.label ?? "shot"}-${index}`} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
+                {shot.label ?? `Shot ${index + 1}`}
+              </p>
+              {shot.prompt ? (
+                <p className="mt-2 text-xs leading-relaxed text-slate-700">{shot.prompt}</p>
+              ) : null}
+              {shot.motion_hint ? (
+                <p className="mt-2 text-[11px] font-medium text-violet-700">{shot.motion_hint}</p>
+              ) : null}
+            </div>
+          ))
+        : legacyPrompts.slice(0, 4).map((prompt, index) => (
+            <p
+              key={`legacy-prompt-${index}`}
+              className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-700"
+            >
+              {prompt}
+            </p>
+          ))}
+
+      {output.negative_prompt ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-xs leading-relaxed text-amber-800">
+          Avoid: {output.negative_prompt}
+        </div>
+      ) : null}
+
+      <div className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-3 text-[11px] leading-relaxed text-slate-500">
+        Image rendering is not connected yet. This step currently saves style-aware prompts for the future image generation pipeline.
+      </div>
     </div>
   );
 }
@@ -307,6 +386,7 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
   const isComplete = project?.status === "ready" || project?.status === "published";
   const publishAction = project?.status === "published" ? "unpublish" : "publish";
   const voiceOutput = generationByStep.get("voice")?.output as VoiceOutput | undefined;
+  const imagePromptOutput = generationByStep.get("image_prompts")?.output as ImagePromptOutput | undefined;
   const voiceAudioSrc =
     voiceOutput?.audio_base64 && voiceOutput?.mime_type
       ? `data:${voiceOutput.mime_type};base64,${voiceOutput.audio_base64}`
@@ -472,6 +552,8 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
                     <div className="space-y-2">
                       {step.id === "voice" ? (
                         <VoiceAssetCard output={voiceOutput} audioSrc={voiceAudioSrc} />
+                      ) : step.id === "image_prompts" ? (
+                        <ImagePromptCard output={imagePromptOutput} />
                       ) : (
                         outputLines(generation?.output).map((line, index) => (
                           <p
