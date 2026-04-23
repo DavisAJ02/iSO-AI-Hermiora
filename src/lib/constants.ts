@@ -86,7 +86,7 @@ export const EFFECT_OPTIONS = [
 ] as const;
 
 export const QUICK_TEMPLATES = [
-  { emoji: "☠️", label: "Scary Story" },
-  { emoji: "🔥", label: "Motivation" },
-  { emoji: "⚔️", label: "History" },
+  { emoji: "Dark", label: "Scary Story" },
+  { emoji: "Viral", label: "Motivation" },
+  { emoji: "Epic", label: "History" },
 ] as const;

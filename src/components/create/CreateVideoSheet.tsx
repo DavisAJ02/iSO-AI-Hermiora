@@ -1,19 +1,98 @@
 "use client";
 
-import { Mic, Paperclip, Sparkles, Wand2 } from "lucide-react";
+import { Check, Mic, Paperclip, Pin, Sparkles, Wand2 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useApp } from "@/context/AppProvider";
 import { ART_STYLE_PRESETS, getArtStylePreset } from "@/lib/ai/artStylePresets";
 import {
-  CAPTION_STYLE_OPTIONS,
   EFFECT_OPTIONS,
   LANGUAGE_OPTIONS,
   NICHE_OPTIONS,
   QUICK_TEMPLATES,
-  VOICE_STYLE_OPTIONS,
 } from "@/lib/constants";
 import { Button } from "@/components/ui/Button";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { cn } from "@/lib/utils";
+
+const VOICE_STYLE_PRESETS = [
+  {
+    label: "Narration",
+    summary: "Balanced storyteller tone with a clean pace.",
+    accentClass: "from-sky-100 via-slate-100 to-slate-200",
+  },
+  {
+    label: "High Energy",
+    summary: "Fast, punchy, conversion-focused creator delivery.",
+    accentClass: "from-fuchsia-100 via-rose-100 to-orange-100",
+  },
+  {
+    label: "Calm Explainer",
+    summary: "Confident and reassuring for educational content.",
+    accentClass: "from-emerald-100 via-teal-100 to-sky-100",
+  },
+  {
+    label: "Dark Dramatic",
+    summary: "Heavy pauses and gravity for suspense or mythic topics.",
+    accentClass: "from-slate-400 via-slate-600 to-slate-800",
+  },
+  {
+    label: "Storyteller",
+    summary: "Emotional, immersive pacing for narrative hooks.",
+    accentClass: "from-amber-100 via-rose-100 to-violet-100",
+  },
+] as const;
+
+const CAPTION_STYLE_PRESETS = [
+  {
+    label: "Bold Stroke",
+    summary: "Big punchy words with thick readable contrast.",
+    accentClass: "from-slate-900 via-slate-700 to-slate-500",
+  },
+  {
+    label: "Red Highlight",
+    summary: "Key power words pop with urgency and emphasis.",
+    accentClass: "from-rose-500 via-red-500 to-orange-400",
+  },
+  {
+    label: "Sleek",
+    summary: "Minimal modern captions for polished premium edits.",
+    accentClass: "from-slate-100 via-slate-200 to-slate-300",
+  },
+  {
+    label: "Karaoke",
+    summary: "Word-by-word timing for strong retention and rhythm.",
+    accentClass: "from-violet-300 via-fuchsia-300 to-pink-300",
+  },
+  {
+    label: "Creator Pop",
+    summary: "Social-native caption blocks with creator flair.",
+    accentClass: "from-amber-200 via-orange-200 to-fuchsia-200",
+  },
+] as const;
+
+const PINNED_ART_STYLES_KEY = "hermiora:pinned-art-styles";
+
+const TEMPLATE_STARTERS: Record<string, string> = {
+  "Scary Story": "A chilling story hook with a twist ending people will replay.",
+  Motivation: "A short high-retention pep talk that feels urgent and cinematic.",
+  History: "A surprising historical fact sequence with a dramatic reveal.",
+};
+
+function loadPinnedArtStyles() {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(PINNED_ART_STYLES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is string => typeof item === "string").slice(0, 6);
+  } catch {
+    return [];
+  }
+}
 
 export function CreateVideoSheet() {
   const {
@@ -25,7 +104,58 @@ export function CreateVideoSheet() {
     startGeneration,
     generation,
   } = useApp();
+
+  const [pinnedArtStyles, setPinnedArtStyles] = useState<string[]>(loadPinnedArtStyles);
   const selectedArtStyle = getArtStylePreset(createControls.artStyle);
+  const selectedVoiceStyle = VOICE_STYLE_PRESETS.find(
+    (preset) => preset.label === createControls.voiceStyle,
+  );
+  const selectedCaptionStyle = CAPTION_STYLE_PRESETS.find(
+    (preset) => preset.label === createControls.captionStyle,
+  );
+  const directionPills = [
+    createControls.niche,
+    createControls.language,
+    createControls.voiceStyle,
+    createControls.captionStyle,
+    createControls.artStyle,
+    ...createControls.effects.slice(0, 2),
+  ].filter(Boolean);
+
+  const orderedArtStylePresets = useMemo(() => {
+    const pinned = ART_STYLE_PRESETS.filter((preset) => pinnedArtStyles.includes(preset.label));
+    const rest = ART_STYLE_PRESETS.filter((preset) => !pinnedArtStyles.includes(preset.label));
+    return [...pinned, ...rest];
+  }, [pinnedArtStyles]);
+
+  const togglePinnedArtStyle = (label: string) => {
+    setPinnedArtStyles((current) => {
+      const next = current.includes(label)
+        ? current.filter((item) => item !== label)
+        : [label, ...current].slice(0, 6);
+      try {
+        window.localStorage.setItem(PINNED_ART_STYLES_KEY, JSON.stringify(next));
+      } catch {
+        // Ignore storage write failures and still update in-memory state.
+      }
+      return next;
+    });
+  };
+
+  const applyTemplate = (label: string) => {
+    const starter = TEMPLATE_STARTERS[label];
+    const trimmed = createIdea.trim();
+    if (!trimmed) {
+      setCreateIdea(starter ?? label);
+      return;
+    }
+
+    if (trimmed.toLowerCase().startsWith(`${label.toLowerCase()}:`)) {
+      return;
+    }
+
+    setCreateIdea(`${label}: ${trimmed}`);
+  };
 
   if (!ui.createOpen) return null;
 
@@ -38,7 +168,7 @@ export function CreateVideoSheet() {
       onClick={ui.closeCreate}
     >
       <div
-        className="flex max-h-[min(92dvh,840px)] w-full max-w-lg flex-col overflow-hidden rounded-t-[28px] border border-slate-200/80 bg-white shadow-2xl sm:max-h-[90dvh] sm:rounded-[28px]"
+        className="flex max-h-[min(92dvh,900px)] w-full max-w-3xl flex-col overflow-hidden rounded-t-[28px] border border-slate-200/80 bg-white shadow-2xl sm:max-h-[90dvh] sm:rounded-[28px]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
@@ -55,8 +185,8 @@ export function CreateVideoSheet() {
           <span className="w-14" aria-hidden />
         </div>
 
-        <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4">
-          {generation.active && (
+        <div className="flex-1 space-y-6 overflow-y-auto px-4 py-4 sm:px-5">
+          {generation.active ? (
             <div className="rounded-2xl border border-violet-100 bg-violet-50/60 p-3">
               <div className="flex items-center justify-between text-xs font-semibold text-violet-900">
                 <span>AI pipeline running</span>
@@ -65,267 +195,439 @@ export function CreateVideoSheet() {
               <ProgressBar value={generation.progress} className="mt-2" />
               <p className="mt-1 text-[11px] text-violet-800/80">{generation.statusText}</p>
             </div>
-          )}
+          ) : null}
 
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-700">
-              Idea
-            </p>
-            <div className="mt-2 rounded-[var(--hermi-radius-xl)] border border-violet-200/80 bg-white p-3 shadow-sm ring-2 ring-violet-100/70">
-              <label htmlFor="create-idea" className="sr-only">
-                Describe your video idea
-              </label>
-              <textarea
-                id="create-idea"
-                rows={5}
-                maxLength={500}
-                value={createIdea}
-                onChange={(e) => setCreateIdea(e.target.value)}
-                placeholder="Describe your video idea... e.g. '5 dark facts about ancient Egypt'"
-                className="w-full resize-none bg-transparent text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
-              />
-              <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700"
-                >
-                  <Mic className="h-3.5 w-3.5" />
-                  Voice
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700"
-                >
-                  <Paperclip className="h-3.5 w-3.5" />
-                  Attach
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700"
-                >
-                  <Wand2 className="h-3.5 w-3.5" />
-                  AI Suggest
-                </button>
-                <span className="ml-auto text-[11px] text-slate-400">{createIdea.length}/500</span>
+          <div className="rounded-[26px] border border-slate-200 bg-[linear-gradient(135deg,rgba(250,245,255,0.96),rgba(255,255,255,1))] p-4 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-700">
+                  Creative Direction
+                </p>
+                <p className="mt-1 max-w-xl text-sm leading-relaxed text-slate-600">
+                  Dial in the niche, voice, captions, and visual treatment before we generate.
+                </p>
+              </div>
+              <div className="rounded-full border border-violet-200 bg-white px-3 py-1 text-[11px] font-semibold text-violet-700">
+                {selectedArtStyle?.label ?? createControls.artStyle} look
               </div>
             </div>
-          </div>
-
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-700">
-              Quick templates
-            </p>
-            <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-              {QUICK_TEMPLATES.map((template) => (
-                <button
-                  key={template.label}
-                  type="button"
-                  onClick={() => setCreateIdea(`${template.label}: ${createIdea}`.trim())}
-                  className={cn(
-                    "shrink-0 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 shadow-sm transition hover:border-violet-200 hover:bg-violet-50",
-                  )}
+            <div className="mt-3 flex flex-wrap gap-2">
+              {directionPills.map((pill, index) => (
+                <span
+                  key={`${pill}-${index}`}
+                  className="rounded-full border border-white bg-white/90 px-3 py-1 text-[11px] font-medium text-slate-700 shadow-sm"
                 >
-                  {template.emoji} {template.label}
-                </button>
+                  {pill}
+                </span>
               ))}
             </div>
           </div>
 
-          <div className="space-y-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-700">
-              Creative controls
-            </p>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  Niche
-                </span>
-                <select
-                  value={createControls.niche}
-                  onChange={(e) => setCreateControls({ niche: e.target.value })}
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
-                >
-                  {NICHE_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="space-y-1">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  Language
-                </span>
-                <select
-                  value={createControls.language}
-                  onChange={(e) => setCreateControls({ language: e.target.value })}
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
-                >
-                  {LANGUAGE_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="space-y-1">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  Voice style
-                </span>
-                <select
-                  value={createControls.voiceStyle}
-                  onChange={(e) => setCreateControls({ voiceStyle: e.target.value })}
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
-                >
-                  {VOICE_STYLE_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="space-y-1">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  Art style
-                </span>
-                <div className="rounded-xl border border-violet-200 bg-violet-50/60 px-3 py-3 text-sm text-violet-900">
-                  {selectedArtStyle?.label ?? createControls.artStyle}
+          <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="space-y-6">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-700">
+                  Idea
+                </p>
+                <div className="mt-2 rounded-[var(--hermi-radius-xl)] border border-violet-200/80 bg-white p-3 shadow-sm ring-2 ring-violet-100/70">
+                  <label htmlFor="create-idea" className="sr-only">
+                    Describe your video idea
+                  </label>
+                  <textarea
+                    id="create-idea"
+                    rows={6}
+                    maxLength={500}
+                    value={createIdea}
+                    onChange={(e) => setCreateIdea(e.target.value)}
+                    placeholder="Describe your video idea... e.g. '5 dark facts about ancient Egypt'"
+                    className="w-full resize-none bg-transparent text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
+                  />
+                  <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700"
+                    >
+                      <Mic className="h-3.5 w-3.5" />
+                      Voice
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700"
+                    >
+                      <Paperclip className="h-3.5 w-3.5" />
+                      Attach
+                    </button>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-700"
+                    >
+                      <Wand2 className="h-3.5 w-3.5" />
+                      AI Suggest
+                    </button>
+                    <span className="ml-auto text-[11px] text-slate-400">{createIdea.length}/500</span>
+                  </div>
                 </div>
-              </label>
+              </div>
 
-              <label className="space-y-1 sm:col-span-2">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  Caption style
-                </span>
-                <select
-                  value={createControls.captionStyle}
-                  onChange={(e) => setCreateControls({ captionStyle: e.target.value })}
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
-                >
-                  {CAPTION_STYLE_OPTIONS.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-700">
+                  Quick templates
+                </p>
+                <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                  {QUICK_TEMPLATES.map((template) => (
+                    <button
+                      key={template.label}
+                      type="button"
+                      onClick={() => applyTemplate(template.label)}
+                      className={cn(
+                        "shrink-0 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 shadow-sm transition hover:border-violet-200 hover:bg-violet-50",
+                      )}
+                    >
+                      {template.emoji} {template.label}
+                    </button>
                   ))}
-                </select>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    Niche
+                  </span>
+                  <select
+                    value={createControls.niche}
+                    onChange={(e) => setCreateControls({ niche: e.target.value })}
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                  >
+                    {NICHE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    Language
+                  </span>
+                  <select
+                    value={createControls.language}
+                    onChange={(e) => setCreateControls({ language: e.target.value })}
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                  >
+                    {LANGUAGE_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Image effects
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {EFFECT_OPTIONS.map((effect) => {
+                    const active = createControls.effects.includes(effect);
+                    return (
+                      <button
+                        key={effect}
+                        type="button"
+                        onClick={() =>
+                          setCreateControls({
+                            effects: active
+                              ? createControls.effects.filter((item) => item !== effect)
+                              : [...createControls.effects, effect],
+                          })
+                        }
+                        className={cn(
+                          "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                          active
+                            ? "border-violet-300 bg-violet-100 text-violet-800"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:bg-violet-50",
+                        )}
+                      >
+                        {effect}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <label className="block">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Example script to match tone
+                </span>
+                <textarea
+                  rows={5}
+                  maxLength={1000}
+                  value={createControls.exampleScript ?? ""}
+                  onChange={(e) => setCreateControls({ exampleScript: e.target.value })}
+                  placeholder="Paste a short sample script so AI can mirror the pacing, tone, and structure."
+                  className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-100"
+                />
               </label>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                  Visual art style picker
-                </p>
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    Voice direction
+                  </p>
+                  {selectedVoiceStyle ? (
+                    <span className="text-[11px] font-medium text-violet-700">
+                      {selectedVoiceStyle.summary}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="grid gap-3">
+                  {selectedVoiceStyle ? (
+                    <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-violet-700">
+                        Selected voice
+                      </p>
+                      <div className="mt-2 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">
+                            {selectedVoiceStyle.label}
+                          </p>
+                          <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                            {selectedVoiceStyle.summary}
+                          </p>
+                        </div>
+                        <div
+                          className={cn(
+                            "h-10 w-10 rounded-2xl bg-gradient-to-br",
+                            selectedVoiceStyle.accentClass,
+                          )}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {VOICE_STYLE_PRESETS.map((preset) => {
+                    const active = preset.label === createControls.voiceStyle;
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => setCreateControls({ voiceStyle: preset.label })}
+                        className={cn(
+                          "rounded-2xl border px-4 py-4 text-left transition",
+                          active
+                            ? "border-violet-300 bg-violet-50 ring-2 ring-violet-200"
+                            : "border-slate-200 bg-white hover:border-violet-200 hover:bg-violet-50/40",
+                        )}
+                      >
+                        <div className={cn("h-2 rounded-full bg-gradient-to-r", preset.accentClass)} />
+                        <div className="mt-3 flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-slate-900">{preset.label}</p>
+                          {active ? <Check className="h-4 w-4 text-violet-700" /> : null}
+                        </div>
+                        <p className="mt-1 text-xs leading-relaxed text-slate-600">{preset.summary}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    Caption treatment
+                  </p>
+                  {selectedCaptionStyle ? (
+                    <span className="text-[11px] font-medium text-violet-700">
+                      {selectedCaptionStyle.summary}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="grid gap-3">
+                  {selectedCaptionStyle ? (
+                    <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-violet-700">
+                        Selected captions
+                      </p>
+                      <div className="mt-2 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">
+                            {selectedCaptionStyle.label}
+                          </p>
+                          <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                            {selectedCaptionStyle.summary}
+                          </p>
+                        </div>
+                        <div
+                          className={cn(
+                            "h-10 w-10 rounded-2xl bg-gradient-to-br",
+                            selectedCaptionStyle.accentClass,
+                          )}
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {CAPTION_STYLE_PRESETS.map((preset) => {
+                    const active = preset.label === createControls.captionStyle;
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => setCreateControls({ captionStyle: preset.label })}
+                        className={cn(
+                          "rounded-2xl border px-4 py-4 text-left transition",
+                          active
+                            ? "border-violet-300 bg-violet-50 ring-2 ring-violet-200"
+                            : "border-slate-200 bg-white hover:border-violet-200 hover:bg-violet-50/40",
+                        )}
+                      >
+                        <div className={cn("h-2 rounded-full bg-gradient-to-r", preset.accentClass)} />
+                        <div className="mt-3 flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-slate-900">{preset.label}</p>
+                          {active ? <Check className="h-4 w-4 text-violet-700" /> : null}
+                        </div>
+                        <p className="mt-1 text-xs leading-relaxed text-slate-600">{preset.summary}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                Visual art style picker
+              </p>
+              <div className="flex items-center gap-2">
+                {pinnedArtStyles.length > 0 ? (
+                  <span className="text-[11px] font-medium text-slate-500">
+                    {pinnedArtStyles.length} pinned
+                  </span>
+                ) : null}
                 {selectedArtStyle ? (
                   <span className="text-[11px] font-medium text-violet-700">
                     {selectedArtStyle.summary}
                   </span>
                 ) : null}
               </div>
+            </div>
 
-              <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
-                {ART_STYLE_PRESETS.map((preset) => {
-                  const active = preset.label === createControls.artStyle;
-                  return (
-                    <button
-                      key={preset.label}
-                      type="button"
-                      onClick={() => setCreateControls({ artStyle: preset.label })}
+            {selectedArtStyle ? (
+              <div className="overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-sm">
+                <div
+                  className={cn(
+                    "relative h-32 bg-gradient-to-br",
+                    selectedArtStyle.previewClass,
+                  )}
+                >
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(255,255,255,0.48),transparent_26%),radial-gradient(circle_at_82%_20%,rgba(255,255,255,0.34),transparent_22%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(15,23,42,0.2))]" />
+                  <div className="absolute inset-x-0 bottom-0 p-4">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-white/88 px-3 py-1 text-[11px] font-semibold text-slate-700 backdrop-blur">
+                      <Check className="h-3.5 w-3.5 text-violet-700" />
+                      Selected look
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-3 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-lg font-semibold text-slate-900">{selectedArtStyle.label}</p>
+                      <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-600">
+                        {selectedArtStyle.summary}
+                      </p>
+                    </div>
+                    <div className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-semibold text-violet-700">
+                      {pinnedArtStyles.includes(selectedArtStyle.label) ? "Pinned" : "Ready to use"}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedArtStyle.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-medium text-slate-600"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
+              {orderedArtStylePresets.map((preset) => {
+                const active = preset.label === createControls.artStyle;
+                const pinned = pinnedArtStyles.includes(preset.label);
+                return (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => setCreateControls({ artStyle: preset.label })}
+                    className="group w-[198px] shrink-0 text-left"
+                  >
+                    <div
                       className={cn(
-                        "group shrink-0 text-left",
-                        "w-[168px]",
+                        "overflow-hidden rounded-[22px] border bg-white shadow-sm transition",
+                        active
+                          ? "border-violet-300 ring-2 ring-violet-200"
+                          : "border-slate-200 hover:border-violet-200 hover:shadow-md",
                       )}
                     >
                       <div
                         className={cn(
-                          "overflow-hidden rounded-[22px] border bg-white shadow-sm transition",
-                          active
-                            ? "border-violet-300 ring-2 ring-violet-200"
-                            : "border-slate-200 hover:border-violet-200 hover:shadow-md",
+                          "relative aspect-[3/5] bg-gradient-to-br",
+                          preset.previewClass,
                         )}
                       >
-                        <div
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.45),transparent_28%),radial-gradient(circle_at_80%_25%,rgba(255,255,255,0.35),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(15,23,42,0.18))]" />
+                        <button
+                          type="button"
+                          aria-label={pinned ? `Unpin ${preset.label}` : `Pin ${preset.label}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            togglePinnedArtStyle(preset.label);
+                          }}
                           className={cn(
-                            "relative aspect-[3/5] bg-gradient-to-br",
-                            preset.previewClass,
+                            "absolute left-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur transition",
+                            pinned
+                              ? "border-violet-200 bg-violet-600 text-white"
+                              : "border-white/50 bg-white/65 text-slate-700 hover:bg-white",
                           )}
                         >
-                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.45),transparent_28%),radial-gradient(circle_at_80%_25%,rgba(255,255,255,0.35),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(15,23,42,0.18))]" />
-                          <div className="absolute bottom-0 left-0 right-0 p-3">
-                            <div className="rounded-2xl bg-white/86 px-3 py-2 backdrop-blur">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                                {preset.tags.join(" • ")}
-                              </p>
-                              <p className="mt-1 text-xs font-medium leading-relaxed text-slate-700">
-                                {preset.summary}
-                              </p>
-                            </div>
+                          <Pin className="h-4 w-4" />
+                        </button>
+                        {active ? (
+                          <div className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-violet-600 text-white shadow-lg">
+                            <Check className="h-4 w-4" />
                           </div>
-                          {active ? (
-                            <div className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-violet-600 text-sm font-bold text-white shadow-lg">
-                              ✓
-                            </div>
-                          ) : null}
-                        </div>
-                        <div className="px-3 py-3">
-                          <p className="text-lg font-semibold text-slate-900">{preset.label}</p>
+                        ) : null}
+                        <div className="absolute bottom-0 left-0 right-0 p-3">
+                          <div className="rounded-2xl bg-white/86 px-3 py-2 backdrop-blur">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                              {preset.tags.join(" | ")}
+                            </p>
+                            <p className="mt-1 text-xs font-medium leading-relaxed text-slate-700">
+                              {preset.summary}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </button>
-                  );
-                })}
-              </div>
+                      <div className="px-3 py-3">
+                        <p className="text-lg font-semibold text-slate-900">{preset.label}</p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
-
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                Image effects
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {EFFECT_OPTIONS.map((effect) => {
-                  const active = createControls.effects.includes(effect);
-                  return (
-                    <button
-                      key={effect}
-                      type="button"
-                      onClick={() =>
-                        setCreateControls({
-                          effects: active
-                            ? createControls.effects.filter((item) => item !== effect)
-                            : [...createControls.effects, effect],
-                        })
-                      }
-                      className={cn(
-                        "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
-                        active
-                          ? "border-violet-300 bg-violet-100 text-violet-800"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:bg-violet-50",
-                      )}
-                    >
-                      {effect}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <label className="block">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
-                Example script to match tone
-              </span>
-              <textarea
-                rows={4}
-                maxLength={1000}
-                value={createControls.exampleScript ?? ""}
-                onChange={(e) => setCreateControls({ exampleScript: e.target.value })}
-                placeholder="Paste a short sample script so AI can mirror the pacing, tone, and structure."
-                className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-100"
-              />
-            </label>
           </div>
         </div>
 
