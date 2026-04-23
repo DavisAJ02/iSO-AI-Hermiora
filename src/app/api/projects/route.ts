@@ -62,7 +62,7 @@ function normalizeCreativeControls(value: unknown): CreativeControls | null {
     niche: stringValue("niche", "Storytelling"),
     language: stringValue("language", "English"),
     voiceStyle: stringValue("voiceStyle", "Narration"),
-    artStyle: stringValue("artStyle", "Modern Cartoon"),
+    artStyle: stringValue("artStyle", "Realism"),
     captionStyle: stringValue("captionStyle", "Bold Stroke"),
     effects,
     exampleScript,

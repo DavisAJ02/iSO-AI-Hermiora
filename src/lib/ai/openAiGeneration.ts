@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getArtStylePreset } from "@/lib/ai/artStylePresets";
 import { saveProjectImages } from "@/lib/ai/openAiImages";
 import { saveProjectVoice } from "@/lib/ai/elevenLabsVoice";
 import { getTikTokTrendContext } from "@/lib/ai/providerHealth";
@@ -255,12 +256,14 @@ function stepOutput(generation: ViralGeneration, step: PipelineStepId) {
 
 function describeCreativeControls(controls: CreativeControls | null | undefined) {
   if (!controls) return "No creative controls were provided.";
+  const artStylePreset = getArtStylePreset(controls.artStyle);
 
   const parts = [
     `Niche: ${controls.niche}`,
     `Language: ${controls.language}`,
     `Voice style: ${controls.voiceStyle}`,
     `Art style: ${controls.artStyle}`,
+    artStylePreset ? `Art style blueprint: ${artStylePreset.promptGuide}` : null,
     `Caption style: ${controls.captionStyle}`,
     controls.effects.length > 0 ? `Effects: ${controls.effects.join(", ")}` : null,
     controls.exampleScript?.trim()
@@ -292,7 +295,7 @@ export async function generateViralVideoPackage(project: ProjectGenerationRow) {
         {
           role: "system",
           content:
-            "You are Hermiora AI, a senior short-form video strategist. Generate viral-style content that is specific, ethical, punchy, and optimized for TikTok/Reels/Shorts. Return only JSON matching the schema. Make the image_prompts step visually specific: each shot prompt must clearly reflect the requested art style, visual effects, and storytelling tone.",
+            "You are Hermiora AI, a senior short-form video strategist. Generate viral-style content that is specific, ethical, punchy, and optimized for TikTok/Reels/Shorts. Return only JSON matching the schema. Make the image_prompts step visually specific: each shot prompt must clearly reflect the requested art style, visual effects, and storytelling tone with premium composition, clean anatomy, and high-detail finish suitable for polished short-form content.",
         },
         {
           role: "user",

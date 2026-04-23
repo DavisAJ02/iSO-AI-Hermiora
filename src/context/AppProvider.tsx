@@ -101,7 +101,7 @@ const initialCreativeControls: CreativeControls = {
   niche: "Storytelling",
   language: "English",
   voiceStyle: "Narration",
-  artStyle: "Modern Cartoon",
+  artStyle: "Realism",
   captionStyle: "Bold Stroke",
   effects: ["Animated Hook"],
   exampleScript: "",

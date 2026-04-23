@@ -53,14 +53,19 @@ export const VOICE_STYLE_OPTIONS = [
 ] as const;
 
 export const ART_STYLE_OPTIONS = [
+  "Polaroid",
+  "Realism",
+  "Fantastic",
+  "Dark Fantasy",
+  "Lego",
+  "Ghibli",
   "Modern Cartoon",
   "Comic",
-  "Creep Comic",
+  "Creepy Comic",
   "Anime",
-  "Mythology",
   "Painting",
-  "Dark Fantasy",
-  "Realism",
+  "Disney",
+  "Mythology",
   "Pixel Art",
 ] as const;
 

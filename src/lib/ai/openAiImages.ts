@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getArtStylePreset } from "@/lib/ai/artStylePresets";
 
 type ImagePromptOutput = {
   art_style?: string;
@@ -71,7 +72,7 @@ async function generateImageBuffer(prompt: string, size: string) {
   if (!key) throw new Error("OPENAI_API_KEY is not configured.");
 
   const model = process.env.OPENAI_IMAGE_MODEL?.trim() || "gpt-image-1";
-  const quality = process.env.OPENAI_IMAGE_QUALITY?.trim() || "low";
+  const quality = process.env.OPENAI_IMAGE_QUALITY?.trim() || "high";
 
   const response = await fetch("https://api.openai.com/v1/images/generations", {
     method: "POST",
@@ -102,6 +103,25 @@ async function generateImageBuffer(prompt: string, size: string) {
   return Buffer.from(b64, "base64");
 }
 
+function buildStyledPrompt(basePrompt: string, artStyle: string | undefined, motionHint: string | undefined) {
+  const preset = getArtStylePreset(artStyle);
+  return [
+    preset?.promptGuide ?? null,
+    basePrompt,
+    motionHint?.trim() ? `Motion cue for framing: ${motionHint.trim()}` : null,
+    "vertical premium short-form visual, crisp focal subject, polished lighting, strong composition, no text overlay, high production value",
+  ]
+    .filter(Boolean)
+    .join(". ");
+}
+
+function buildNegativePrompt(baseNegativePrompt: string | undefined, artStyle: string | undefined) {
+  const preset = getArtStylePreset(artStyle);
+  return [baseNegativePrompt?.trim() || null, preset?.negativeGuide ?? null]
+    .filter(Boolean)
+    .join(", ");
+}
+
 export async function saveProjectImages(admin: SupabaseClient, project: ProjectImageRow) {
   const imageOutput = getGenerationOutput<ImagePromptOutput>(project.generations, "image_prompts");
   const structuredShots = (imageOutput?.shots ?? [])
@@ -124,6 +144,7 @@ export async function saveProjectImages(admin: SupabaseClient, project: ProjectI
   }
 
   const size = sizeFromAspectRatio(imageOutput?.aspect_ratio);
+  const negativePrompt = buildNegativePrompt(imageOutput?.negative_prompt, imageOutput?.art_style);
   const generatedImages: StoredImage[] = [];
 
   for (const [index, shot] of shots.entries()) {
@@ -131,8 +152,12 @@ export async function saveProjectImages(admin: SupabaseClient, project: ProjectI
     const prompt = shot.prompt?.trim() || "";
     const filename = `${String(index + 1).padStart(2, "0")}-${slugify(label || project.title || "image") || "image"}.png`;
     const storagePath = `${project.user_id}/projects/${project.id}/${filename}`;
+    const styledPrompt = buildStyledPrompt(prompt, imageOutput?.art_style, shot.motion_hint);
 
-    const imageBuffer = await generateImageBuffer(prompt, size);
+    const imageBuffer = await generateImageBuffer(
+      negativePrompt ? `${styledPrompt}. Negative prompt: ${negativePrompt}` : styledPrompt,
+      size,
+    );
     const { error: uploadError } = await admin.storage
       .from("images")
       .upload(storagePath, imageBuffer, {
@@ -146,13 +171,15 @@ export async function saveProjectImages(admin: SupabaseClient, project: ProjectI
       label,
       storage_path: storagePath,
       mime_type: "image/png",
-      prompt,
+      prompt: styledPrompt,
       motion_hint: shot.motion_hint?.trim() || undefined,
     });
   }
 
   const nextOutput = {
     ...imageOutput,
+    quality: process.env.OPENAI_IMAGE_QUALITY?.trim() || "high",
+    negative_prompt: negativePrompt || imageOutput?.negative_prompt,
     generated_images: generatedImages,
   };
 
