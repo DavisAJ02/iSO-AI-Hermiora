@@ -2,13 +2,30 @@
 
 import { Mic, Paperclip, Sparkles, Wand2 } from "lucide-react";
 import { useApp } from "@/context/AppProvider";
-import { QUICK_TEMPLATES } from "@/lib/constants";
+import {
+  ART_STYLE_OPTIONS,
+  CAPTION_STYLE_OPTIONS,
+  EFFECT_OPTIONS,
+  LANGUAGE_OPTIONS,
+  NICHE_OPTIONS,
+  QUICK_TEMPLATES,
+  VOICE_STYLE_OPTIONS,
+} from "@/lib/constants";
 import { Button } from "@/components/ui/Button";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { cn } from "@/lib/utils";
 
 export function CreateVideoSheet() {
-  const { createIdea, setCreateIdea, ui, startGeneration, generation } = useApp();
+  const {
+    createIdea,
+    setCreateIdea,
+    createControls,
+    setCreateControls,
+    ui,
+    startGeneration,
+    generation,
+  } = useApp();
+
   if (!ui.createOpen) return null;
 
   return (
@@ -45,15 +62,13 @@ export function CreateVideoSheet() {
                 <span>{Math.round(generation.progress)}%</span>
               </div>
               <ProgressBar value={generation.progress} className="mt-2" />
-              <p className="mt-1 text-[11px] text-violet-800/80">
-                {generation.statusText}
-              </p>
+              <p className="mt-1 text-[11px] text-violet-800/80">{generation.statusText}</p>
             </div>
           )}
 
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-700">
-              💡 Your idea
+              Idea
             </p>
             <div className="mt-2 rounded-[var(--hermi-radius-xl)] border border-violet-200/80 bg-white p-3 shadow-sm ring-2 ring-violet-100/70">
               <label htmlFor="create-idea" className="sr-only">
@@ -65,7 +80,7 @@ export function CreateVideoSheet() {
                 maxLength={500}
                 value={createIdea}
                 onChange={(e) => setCreateIdea(e.target.value)}
-                placeholder="Describe your video idea… e.g. '5 dark facts about ancient Egypt'"
+                placeholder="Describe your video idea... e.g. '5 dark facts about ancient Egypt'"
                 className="w-full resize-none bg-transparent text-[15px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
               />
               <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
@@ -90,33 +105,168 @@ export function CreateVideoSheet() {
                   <Wand2 className="h-3.5 w-3.5" />
                   AI Suggest
                 </button>
-                <span className="ml-auto text-[11px] text-slate-400">
-                  {createIdea.length}/500
-                </span>
+                <span className="ml-auto text-[11px] text-slate-400">{createIdea.length}/500</span>
               </div>
             </div>
           </div>
 
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-700">
-              ⚡ Quick templates
+              Quick templates
             </p>
             <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-              {QUICK_TEMPLATES.map((t) => (
+              {QUICK_TEMPLATES.map((template) => (
                 <button
-                  key={t.label}
+                  key={template.label}
                   type="button"
-                  onClick={() =>
-                    setCreateIdea(`${t.label}: ${createIdea}`.trim())
-                  }
+                  onClick={() => setCreateIdea(`${template.label}: ${createIdea}`.trim())}
                   className={cn(
                     "shrink-0 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 shadow-sm transition hover:border-violet-200 hover:bg-violet-50",
                   )}
                 >
-                  {t.emoji} {t.label}
+                  {template.emoji} {template.label}
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="space-y-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-700">
+              Creative controls
+            </p>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="space-y-1">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Niche
+                </span>
+                <select
+                  value={createControls.niche}
+                  onChange={(e) => setCreateControls({ niche: e.target.value })}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                >
+                  {NICHE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Language
+                </span>
+                <select
+                  value={createControls.language}
+                  onChange={(e) => setCreateControls({ language: e.target.value })}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                >
+                  {LANGUAGE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Voice style
+                </span>
+                <select
+                  value={createControls.voiceStyle}
+                  onChange={(e) => setCreateControls({ voiceStyle: e.target.value })}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                >
+                  {VOICE_STYLE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Art style
+                </span>
+                <select
+                  value={createControls.artStyle}
+                  onChange={(e) => setCreateControls({ artStyle: e.target.value })}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                >
+                  {ART_STYLE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-1 sm:col-span-2">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  Caption style
+                </span>
+                <select
+                  value={createControls.captionStyle}
+                  onChange={(e) => setCreateControls({ captionStyle: e.target.value })}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
+                >
+                  {CAPTION_STYLE_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                Image effects
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {EFFECT_OPTIONS.map((effect) => {
+                  const active = createControls.effects.includes(effect);
+                  return (
+                    <button
+                      key={effect}
+                      type="button"
+                      onClick={() =>
+                        setCreateControls({
+                          effects: active
+                            ? createControls.effects.filter((item) => item !== effect)
+                            : [...createControls.effects, effect],
+                        })
+                      }
+                      className={cn(
+                        "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                        active
+                          ? "border-violet-300 bg-violet-100 text-violet-800"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-violet-200 hover:bg-violet-50",
+                      )}
+                    >
+                      {effect}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <label className="block">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                Example script to match tone
+              </span>
+              <textarea
+                rows={4}
+                maxLength={1000}
+                value={createControls.exampleScript ?? ""}
+                onChange={(e) => setCreateControls({ exampleScript: e.target.value })}
+                placeholder="Paste a short sample script so AI can mirror the pacing, tone, and structure."
+                className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-100"
+              />
+            </label>
           </div>
         </div>
 

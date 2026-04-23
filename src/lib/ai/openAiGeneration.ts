@@ -2,18 +2,25 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { saveProjectVoice } from "@/lib/ai/elevenLabsVoice";
 import { getTikTokTrendContext } from "@/lib/ai/providerHealth";
 import { PIPELINE_STEPS } from "@/lib/constants";
-import type { PipelineStepId } from "@/lib/types";
+import type { CreativeControls, PipelineStepId } from "@/lib/types";
 
 type ProjectGenerationRow = {
   id: string;
   title: string | null;
   idea: string | null;
+  creative_controls?: CreativeControls | null;
 };
 
 type ViralGeneration = {
   metadata: {
     niche: string;
     platform: string;
+    language: string;
+    voice_style: string;
+    art_style: string;
+    caption_style: string;
+    effects: string[];
+    style_reference: string;
     titles: string[];
     hashtags: string[];
   };
@@ -71,10 +78,27 @@ const generationSchema = {
     metadata: {
       type: "object",
       additionalProperties: false,
-      required: ["niche", "platform", "titles", "hashtags"],
+      required: [
+        "niche",
+        "platform",
+        "language",
+        "voice_style",
+        "art_style",
+        "caption_style",
+        "effects",
+        "style_reference",
+        "titles",
+        "hashtags",
+      ],
       properties: {
         niche: { type: "string" },
         platform: { type: "string" },
+        language: { type: "string" },
+        voice_style: { type: "string" },
+        art_style: { type: "string" },
+        caption_style: { type: "string" },
+        effects: { type: "array", items: { type: "string" } },
+        style_reference: { type: "string" },
         titles: { type: "array", items: { type: "string" } },
         hashtags: { type: "array", items: { type: "string" } },
       },
@@ -205,6 +229,24 @@ function stepOutput(generation: ViralGeneration, step: PipelineStepId) {
   return generation[step];
 }
 
+function describeCreativeControls(controls: CreativeControls | null | undefined) {
+  if (!controls) return "No creative controls were provided.";
+
+  const parts = [
+    `Niche: ${controls.niche}`,
+    `Language: ${controls.language}`,
+    `Voice style: ${controls.voiceStyle}`,
+    `Art style: ${controls.artStyle}`,
+    `Caption style: ${controls.captionStyle}`,
+    controls.effects.length > 0 ? `Effects: ${controls.effects.join(", ")}` : null,
+    controls.exampleScript?.trim()
+      ? `Example script to match tone: ${controls.exampleScript.trim()}`
+      : null,
+  ].filter(Boolean);
+
+  return parts.join("\n");
+}
+
 export async function generateViralVideoPackage(project: ProjectGenerationRow) {
   const key = process.env.OPENAI_API_KEY?.trim();
   if (!key) throw new Error("OPENAI_API_KEY is not configured.");
@@ -212,6 +254,7 @@ export async function generateViralVideoPackage(project: ProjectGenerationRow) {
   const model = process.env.OPENAI_GENERATION_MODEL?.trim() || "gpt-4.1-mini";
   const idea = project.idea?.trim() || project.title?.trim() || "short-form video idea";
   const trendContext = getTikTokTrendContext();
+  const creativeControls = describeCreativeControls(project.creative_controls);
 
   const res = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -229,7 +272,7 @@ export async function generateViralVideoPackage(project: ProjectGenerationRow) {
         },
         {
           role: "user",
-          content: `Create a 35-55 second vertical video package for this idea: ${idea}\n\nTrend context: ${trendContext}\n\nMake it emotionally sharp, clear for a creator to record, and suitable for a production pipeline.`,
+          content: `Create a 35-55 second vertical video package for this idea: ${idea}\n\nTrend context: ${trendContext}\n\nCreative controls:\n${creativeControls}\n\nMake it emotionally sharp, clear for a creator to record, and suitable for a production pipeline. Match the requested language, tone reference, art direction, captions, and effects when they are provided.`,
         },
       ],
       text: {

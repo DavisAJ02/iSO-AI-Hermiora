@@ -25,6 +25,16 @@ export type PaymentMethod = "apple" | "mobile_money" | "card";
 
 export type MobileOperator = "mpesa" | "orange" | "airtel" | "africel" | "mtn";
 
+export interface CreativeControls {
+  niche: string;
+  language: string;
+  voiceStyle: string;
+  artStyle: string;
+  captionStyle: string;
+  effects: string[];
+  exampleScript?: string;
+}
+
 export interface PipelineStep {
   id: PipelineStepId;
   label: string;
@@ -54,6 +64,7 @@ export interface Project {
   /** 0–100 when status is generating; shown on thumbnails */
   thumbProgress?: number;
   idea?: string | null;
+  creativeControls?: CreativeControls | null;
   createdAt?: string;
   currentStep?: PipelineStepId;
   generationSteps?: GenerationStepState[];

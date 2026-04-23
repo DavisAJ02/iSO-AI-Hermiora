@@ -4,12 +4,13 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { titleFromIdea } from "@/lib/projects/projectMapping";
 import { runRealProjectGeneration } from "@/lib/ai/openAiGeneration";
 import { syncUserGeneratingProjects } from "@/lib/projects/generationRunner";
+import type { CreativeControls } from "@/lib/types";
 import { createClient } from "@/utils/supabase/server";
 
 export const runtime = "nodejs";
 
 const projectSelect =
-  "id,title,idea,status,progress,video_url,created_at,generations(step,status,output,updated_at)";
+  "id,title,idea,creative_controls,status,progress,video_url,created_at,generations(step,status,output,updated_at)";
 
 const pipelineSteps = [
   "hook",
@@ -34,6 +35,38 @@ async function getSignedInUser(req: Request) {
   } = await supabase.auth.getUser();
   if (error || !user) return null;
   return user;
+}
+
+function normalizeCreativeControls(value: unknown): CreativeControls | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+
+  const controls = value as Record<string, unknown>;
+  const stringValue = (key: string, fallback: string) => {
+    const raw = controls[key];
+    return typeof raw === "string" && raw.trim() ? raw.trim().slice(0, 120) : fallback;
+  };
+
+  const effects = Array.isArray(controls.effects)
+    ? controls.effects
+        .map((effect) => (typeof effect === "string" ? effect.trim().slice(0, 80) : ""))
+        .filter(Boolean)
+        .slice(0, 6)
+    : [];
+
+  const exampleScript =
+    typeof controls.exampleScript === "string" && controls.exampleScript.trim()
+      ? controls.exampleScript.trim().slice(0, 1000)
+      : undefined;
+
+  return {
+    niche: stringValue("niche", "Storytelling"),
+    language: stringValue("language", "English"),
+    voiceStyle: stringValue("voiceStyle", "Narration"),
+    artStyle: stringValue("artStyle", "Modern Cartoon"),
+    captionStyle: stringValue("captionStyle", "Bold Stroke"),
+    effects,
+    exampleScript,
+  };
 }
 
 export async function GET(req: Request) {
@@ -69,7 +102,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { idea?: string };
+  let body: { idea?: string; creativeControls?: unknown };
   try {
     body = (await req.json()) as { idea?: string };
   } catch {
@@ -77,6 +110,7 @@ export async function POST(req: Request) {
   }
 
   const idea = body.idea?.trim();
+  const creativeControls = normalizeCreativeControls(body.creativeControls);
   if (!idea) {
     return NextResponse.json({ error: "Describe your video idea first." }, { status: 400 });
   }
@@ -113,6 +147,7 @@ export async function POST(req: Request) {
       user_id: user.id,
       title: titleFromIdea(idea),
       idea,
+      creative_controls: creativeControls,
       status: "generating",
       progress: 8,
     })

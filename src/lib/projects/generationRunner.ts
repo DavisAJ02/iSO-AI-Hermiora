@@ -145,7 +145,7 @@ export async function ensureProjectGenerationOutputs(
     ((data ?? []) as GenerationRow[])
       .filter((row) => {
         const status = row.status?.trim().toLowerCase();
-        return project.status === "ready" || (!row.output && (status === "processing" || status === "done"));
+        return !row.output && (project.status === "ready" || status === "processing" || status === "done");
       })
       .map((row) => {
         const step = PIPELINE_STEPS.find((item) => item.id === row.step)?.id;
@@ -187,18 +187,42 @@ export async function syncProjectGeneration(
 
   if (projectError) throw projectError;
 
+  const { data: generationRows, error: generationRowsError } = await admin
+    .from("generations")
+    .select("step,status,output")
+    .eq("project_id", project.id);
+
+  if (generationRowsError) throw generationRowsError;
+
+  const rowsByStep = new Map(
+    ((generationRows ?? []) as GenerationRow[])
+      .filter((row): row is GenerationRow & { step: string } => typeof row.step === "string")
+      .map((row) => [row.step, row]),
+  );
+  const hasSavedOutputs = Array.from(rowsByStep.values()).some((row) => Boolean(row.output));
+
   const stepResults = await Promise.all(
-    getStepUpdates(project).map(({ step, status }) =>
-      admin
+    getStepUpdates(project).map(({ step, status }) => {
+      const currentRow = rowsByStep.get(step);
+      const update: {
+        status: PipelineJobStatus;
+        updated_at: string;
+        output?: unknown;
+      } = {
+        status,
+        updated_at: timestamp,
+      };
+
+      if (!hasSavedOutputs && !currentRow?.output && status !== "pending") {
+        update.output = buildStepOutput(project, step);
+      }
+
+      return admin
         .from("generations")
-        .update({
-          status,
-          output: status === "pending" ? null : buildStepOutput(project, step),
-          updated_at: timestamp,
-        })
+        .update(update)
         .eq("project_id", project.id)
-        .eq("step", step),
-    ),
+        .eq("step", step);
+    }),
   );
   const stepError = stepResults.find((result) => result.error)?.error;
   if (stepError) throw stepError;

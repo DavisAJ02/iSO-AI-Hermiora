@@ -385,11 +385,47 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
             </div>
           </section>
 
-          {actionMessage && (
-            <Card className="border-emerald-100 bg-emerald-50 p-3 text-sm font-medium text-emerald-800">
-              {actionMessage}
-            </Card>
-          )}
+      {actionMessage && (
+        <Card className="border-emerald-100 bg-emerald-50 p-3 text-sm font-medium text-emerald-800">
+          {actionMessage}
+        </Card>
+      )}
+
+          {project.creativeControls ? (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+                  Creative controls
+                </h2>
+              </div>
+              <Card className="space-y-3 p-4">
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    project.creativeControls.niche,
+                    project.creativeControls.language,
+                    project.creativeControls.voiceStyle,
+                    project.creativeControls.artStyle,
+                    project.creativeControls.captionStyle,
+                    ...project.creativeControls.effects,
+                  ]
+                    .filter(Boolean)
+                    .map((item) => (
+                      <span
+                        key={item}
+                        className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600"
+                      >
+                        {item}
+                      </span>
+                    ))}
+                </div>
+                {project.creativeControls.exampleScript?.trim() ? (
+                  <div className="rounded-xl bg-slate-50 px-3 py-3 text-xs leading-relaxed text-slate-700">
+                    {project.creativeControls.exampleScript.trim()}
+                  </div>
+                ) : null}
+              </Card>
+            </section>
+          ) : null}
 
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-2">

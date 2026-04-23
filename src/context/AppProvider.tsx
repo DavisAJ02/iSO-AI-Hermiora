@@ -11,6 +11,7 @@ import {
 import { useAuth } from "@/context/AuthProvider";
 import type {
   BillingPeriod,
+  CreativeControls,
   GenerationState,
   MobileOperator,
   PaymentMethod,
@@ -29,6 +30,8 @@ interface AppContextValue {
   setIdea: (v: string) => void;
   createIdea: string;
   setCreateIdea: (v: string) => void;
+  createControls: CreativeControls;
+  setCreateControls: (next: Partial<CreativeControls>) => void;
   generation: GenerationState;
   startGeneration: (sourceIdea?: string) => Promise<void>;
   resetGeneration: () => void;
@@ -94,6 +97,16 @@ const initialGeneration: GenerationState = {
   statusText: "Queued…",
 };
 
+const initialCreativeControls: CreativeControls = {
+  niche: "Storytelling",
+  language: "English",
+  voiceStyle: "Narration",
+  artStyle: "Modern Cartoon",
+  captionStyle: "Bold Stroke",
+  effects: ["Animated Hook"],
+  exampleScript: "",
+};
+
 function stepIndex(id: PipelineStepId) {
   return PIPELINE_STEPS.findIndex((s) => s.id === id);
 }
@@ -138,6 +151,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const [idea, setIdea] = useState("");
   const [createIdea, setCreateIdea] = useState("");
+  const [createControls, setCreateControlsState] =
+    useState<CreativeControls>(initialCreativeControls);
   const [generation, setGeneration] = useState<GenerationState>(initialGeneration);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
@@ -354,6 +369,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setGeneration(initialGeneration);
   }, []);
 
+  const setCreateControls = useCallback((next: Partial<CreativeControls>) => {
+    setCreateControlsState((current) => ({ ...current, ...next }));
+  }, []);
+
   const startGeneration = useCallback(
     async (sourceIdea?: string) => {
       const text = (sourceIdea ?? idea).trim();
@@ -375,7 +394,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             ...authHeaders,
           },
           credentials: "same-origin",
-          body: JSON.stringify({ idea: text }),
+          body: JSON.stringify({ idea: text, creativeControls: createControls }),
         });
 
         if (!res.ok) {
@@ -409,7 +428,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return;
       }
     },
-    [idea, loadPlanFromProfile, refreshProjects],
+    [createControls, idea, loadPlanFromProfile, refreshProjects],
   );
   const toggleSocial = useCallback((id: SocialId) => {
     setSocial((s) => ({ ...s, [id]: !s[id] }));
@@ -421,6 +440,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setIdea,
       createIdea,
       setCreateIdea,
+      createControls,
+      setCreateControls,
       generation,
       startGeneration,
       resetGeneration,
@@ -482,6 +503,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     [
       idea,
       createIdea,
+      createControls,
       generation,
       startGeneration,
       resetGeneration,
@@ -509,6 +531,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       checkoutOpen,
       voiceMenuOpen,
       styleMenuOpen,
+      setCreateControls,
     ],
   );
 

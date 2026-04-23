@@ -1,5 +1,6 @@
 import { PIPELINE_STEPS } from "@/lib/constants";
 import type {
+  CreativeControls,
   GenerationStepState,
   PipelineJobStatus,
   PipelineStepId,
@@ -18,6 +19,7 @@ export type ProjectRow = {
   id: string;
   title: string | null;
   idea: string | null;
+  creative_controls?: CreativeControls | null;
   status: string | null;
   progress: number | null;
   video_url?: string | null;
@@ -135,6 +137,7 @@ export function mapProjectRow(row: ProjectRow): Project {
     gradient: gradientForId(row.id),
     thumbProgress: status === "generating" ? progress : undefined,
     idea: row.idea,
+    creativeControls: row.creative_controls ?? null,
     createdAt: row.created_at,
     currentStep: currentStepFromRows(generationSteps, progress, status),
     generationSteps,
