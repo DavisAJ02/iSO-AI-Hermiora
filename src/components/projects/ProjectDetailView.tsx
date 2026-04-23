@@ -7,9 +7,11 @@ import {
   Copy,
   FileText,
   Loader2,
-  Play,
   Sparkles,
+  Trash2,
+  Upload,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
@@ -63,11 +65,14 @@ function statusClass(status: string | null | undefined) {
 
 export function ProjectDetailView({ projectId }: { projectId: string }) {
   const { projects, ui } = useApp();
+  const router = useRouter();
   const cachedProject = projects.items.find((project) => project.id === projectId);
   const [project, setProject] = useState<Project | null>(cachedProject ?? null);
   const [generations, setGenerations] = useState<DetailGenerationRow[]>([]);
   const [loading, setLoading] = useState(!cachedProject);
   const [error, setError] = useState<string | null>(null);
+  const [actionBusy, setActionBusy] = useState<string | null>(null);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const loadProject = useCallback(async () => {
     setLoading(true);
@@ -119,7 +124,69 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
     [generations],
   );
 
-  const progress = project?.status === "ready" ? 100 : project?.thumbProgress ?? 0;
+  const progress =
+    project?.status === "ready" || project?.status === "published"
+      ? 100
+      : project?.thumbProgress ?? 0;
+
+  const runProjectAction = useCallback(
+    async (action: "publish" | "unpublish" | "duplicate" | "delete") => {
+      if (action === "delete" && !window.confirm("Delete this project?")) return;
+
+      setActionBusy(action);
+      setActionMessage(null);
+      setError(null);
+      try {
+        const authHeaders = await getMaishaRequestAuthHeaders();
+        const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}`, {
+          method: action === "delete" ? "DELETE" : "PATCH",
+          credentials: "same-origin",
+          headers:
+            action === "delete"
+              ? authHeaders
+              : {
+                  "Content-Type": "application/json",
+                  ...authHeaders,
+                },
+          body: action === "delete" ? undefined : JSON.stringify({ action }),
+        });
+
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as { error?: string };
+          setError(data.error ?? "Project action failed.");
+          return;
+        }
+
+        if (action === "delete") {
+          await projects.refresh();
+          router.replace("/projects");
+          return;
+        }
+
+        const data = (await res.json()) as { project?: ProjectRow };
+        if (!data.project) {
+          setError("Project action failed.");
+          return;
+        }
+
+        await projects.refresh();
+        if (action === "duplicate") {
+          router.push(`/projects/${data.project.id}`);
+          return;
+        }
+
+        setProject(mapProjectRow(data.project));
+        setGenerations((data.project.generations ?? []) as DetailGenerationRow[]);
+        setActionMessage(action === "publish" ? "Project published." : "Project moved back to ready.");
+      } finally {
+        setActionBusy(null);
+      }
+    },
+    [projectId, projects, router],
+  );
+
+  const isComplete = project?.status === "ready" || project?.status === "published";
+  const publishAction = project?.status === "published" ? "unpublish" : "publish";
 
   return (
     <div className="flex flex-col gap-5 pb-4 pt-2 md:pt-6">
@@ -158,7 +225,7 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
                   {project.status === "generating" ? (
                     <Loader2 className="h-9 w-9 animate-spin" />
                   ) : (
-                    <Play className="ml-1 h-9 w-9 fill-white" />
+                    <Upload className="h-9 w-9" />
                   )}
                 </span>
                 <div>
@@ -193,6 +260,12 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
               </div>
             </div>
           </section>
+
+          {actionMessage && (
+            <Card className="border-emerald-100 bg-emerald-50 p-3 text-sm font-medium text-emerald-800">
+              {actionMessage}
+            </Card>
+          )}
 
           <section className="space-y-3">
             <div className="flex items-center justify-between gap-2">
@@ -252,17 +325,45 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
             </div>
           </section>
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <Button type="button" className="py-3">
-              <Play className="h-4 w-4" />
-              Preview video
+          <div className="grid gap-3 md:grid-cols-3">
+            <Button
+              type="button"
+              className="py-3"
+              disabled={!isComplete || actionBusy != null}
+              onClick={() => void runProjectAction(publishAction)}
+            >
+              {actionBusy === publishAction ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4" />
+              )}
+              {project.status === "published" ? "Unpublish" : "Publish"}
             </Button>
             <button
               type="button"
+              disabled={actionBusy != null}
+              onClick={() => void runProjectAction("duplicate")}
               className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-violet-200 hover:bg-violet-50 hover:text-violet-800"
             >
-              <Copy className="h-4 w-4" />
+              {actionBusy === "duplicate" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
               Duplicate brief
+            </button>
+            <button
+              type="button"
+              disabled={actionBusy != null}
+              onClick={() => void runProjectAction("delete")}
+              className="inline-flex items-center justify-center gap-2 rounded-full border border-rose-200 bg-white px-4 py-3 text-sm font-semibold text-rose-700 shadow-sm transition hover:border-rose-300 hover:bg-rose-50 disabled:pointer-events-none disabled:opacity-45"
+            >
+              {actionBusy === "delete" ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              Delete
             </button>
           </div>
         </>

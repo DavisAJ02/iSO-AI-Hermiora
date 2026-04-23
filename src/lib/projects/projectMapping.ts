@@ -96,7 +96,7 @@ function currentStepFromRows(
   progress: number,
   status: ProjectStatus,
 ): PipelineStepId {
-  if (status === "ready" || progress >= 100) return "render";
+  if (status === "ready" || status === "published" || progress >= 100) return "render";
   const processing = steps.find((step) => step.status === "processing");
   if (processing) return processing.step;
   const firstPending = steps.find((step) => step.status === "pending");
