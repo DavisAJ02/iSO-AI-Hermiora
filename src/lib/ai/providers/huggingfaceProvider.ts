@@ -19,8 +19,44 @@ function huggingFaceError(status: number, bodyText: string) {
 }
 
 function parseJsonText(value: string) {
-  const trimmed = value.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```$/i, "").trim();
-  return JSON.parse(trimmed);
+  const trimmed = value.trim();
+  const cleaned = trimmed
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```$/i, "")
+    .replace(/^json\s*/i, "")
+    .trim();
+
+  const candidates = [cleaned];
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    candidates.push(cleaned.slice(firstBrace, lastBrace + 1));
+  }
+
+  const firstBracket = cleaned.indexOf("[");
+  const lastBracket = cleaned.lastIndexOf("]");
+  if (firstBracket >= 0 && lastBracket > firstBracket) {
+    candidates.push(cleaned.slice(firstBracket, lastBracket + 1));
+  }
+
+  let lastError: unknown = null;
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw new AiProviderError({
+    provider: "huggingface",
+    code: "provider_unavailable",
+    message:
+      lastError instanceof Error
+        ? `Hugging Face returned malformed JSON: ${lastError.message}`
+        : "Hugging Face returned malformed JSON.",
+  });
 }
 
 async function readResponseBuffer(response: Response) {
