@@ -6,6 +6,7 @@ import { saveProjectImages } from "@/lib/ai/openAiImages";
 import { saveProjectVoice } from "@/lib/ai/elevenLabsVoice";
 import { getTikTokTrendContext } from "@/lib/ai/providerHealth";
 import { PIPELINE_STEPS } from "@/lib/constants";
+import { titleFromIdea } from "@/lib/projects/projectMapping";
 import type { CreativeControls, PipelineStepId } from "@/lib/types";
 
 type ProjectGenerationRow = {
@@ -251,6 +252,190 @@ function describeSeriesContext(project: ProjectGenerationRow) {
     : "No series continuity context was provided.";
 }
 
+function splitSentences(text: string) {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function parseLabeledSection(text: string, label: string, nextLabels: string[]) {
+  const pattern = new RegExp(
+    `${label}:?\\s*([\\s\\S]*?)(?=${nextLabels.map((next) => `\\n${next}:?`).join("|") || "$"})`,
+    "i",
+  );
+  const match = text.match(pattern);
+  return match?.[1]?.trim() || "";
+}
+
+function parseList(text: string) {
+  return text
+    .split(/\n+/)
+    .map((line) => line.replace(/^[-*]\s*/, "").trim())
+    .filter(Boolean);
+}
+
+function buildFallbackPackageFromText(
+  project: ProjectGenerationRow,
+  fallbackText: string,
+): ViralGeneration {
+  const controls = project.creative_controls;
+  const idea = project.idea?.trim() || project.title?.trim() || "short-form video idea";
+  const title = titleFromIdea(idea);
+  const hookSection = parseLabeledSection(fallbackText, "HOOK", ["SCRIPT", "BEATS", "SCENES", "TITLES", "HASHTAGS"]);
+  const scriptSection = parseLabeledSection(fallbackText, "SCRIPT", ["BEATS", "SCENES", "TITLES", "HASHTAGS"]);
+  const beatsSection = parseLabeledSection(fallbackText, "BEATS", ["SCENES", "TITLES", "HASHTAGS"]);
+  const titlesSection = parseLabeledSection(fallbackText, "TITLES", ["HASHTAGS"]);
+  const hashtagsSection = parseLabeledSection(fallbackText, "HASHTAGS", []);
+
+  const voiceover = scriptSection || fallbackText.trim();
+  const beats = parseList(beatsSection);
+  const normalizedBeats = beats.length > 0 ? beats : splitSentences(voiceover).slice(0, 5);
+  const hookPrimary = hookSection.split("\n")[0]?.trim() || normalizedBeats[0] || title;
+  const hookVariants = [
+    hookPrimary,
+    `Wait for the twist: ${hookPrimary}`,
+    `You won't expect this: ${hookPrimary}`,
+  ].filter((value, index, array) => value && array.indexOf(value) === index);
+  const titles = parseList(titlesSection).slice(0, 3);
+  const hashtags = parseList(hashtagsSection).slice(0, 6);
+  const scenes = (normalizedBeats.length > 0 ? normalizedBeats : [voiceover])
+    .slice(0, 5)
+    .map((beat, index) => ({
+      label: `Scene ${index + 1}`,
+      direction: beat,
+      on_screen_text: beat.split(/[,.!?]/)[0]?.trim() || beat,
+    }));
+
+  return {
+    metadata: {
+      niche: controls?.niche || "Storytelling",
+      platform: "TikTok / Reels / Shorts",
+      language: controls?.language || "English",
+      voice_style: controls?.voiceStyle || "Narration",
+      art_style: controls?.artStyle || "Realism",
+      caption_style: controls?.captionStyle || "Bold Stroke",
+      background_music: controls?.backgroundMusic || "Ambient Pulse",
+      effects: controls?.effects || [],
+      style_reference: controls?.exampleScript?.trim() || "",
+      titles: titles.length > 0 ? titles : [title],
+      hashtags:
+        hashtags.length > 0
+          ? hashtags
+          : [`#${(controls?.niche || "storytelling").replace(/\s+/g, "")}`, "#HermioraAI", "#Shorts"],
+    },
+    hook: {
+      primary: hookPrimary,
+      variants: hookVariants,
+    },
+    script: {
+      voiceover,
+      beats: normalizedBeats,
+    },
+    scenes: {
+      items: scenes,
+    },
+    image_prompts: {
+      art_style: controls?.artStyle || "Realism",
+      aspect_ratio: "9:16",
+      negative_prompt: getArtStylePreset(controls?.artStyle)?.negativeGuide || "",
+      shots: scenes.map((scene) => ({
+        label: scene.label,
+        prompt: `${getArtStylePreset(controls?.artStyle)?.promptGuide || ""}. ${scene.direction}`.trim(),
+        motion_hint:
+          controls?.effects?.includes("Animated Hook") || controls?.effects?.includes("Fast Zooms")
+            ? "dynamic camera move for retention"
+            : "subtle cinematic motion",
+      })),
+    },
+    voice: {
+      voice_style: controls?.voiceStyle || "Narration",
+      direction: "Clear short-form narration with strong emotional emphasis.",
+    },
+    captions: {
+      style: controls?.captionStyle || "Bold Stroke",
+      keywords: hookPrimary
+        .split(/\s+/)
+        .map((word) => word.replace(/[^\w#-]/g, "").trim())
+        .filter((word) => word.length > 3)
+        .slice(0, 6),
+    },
+    render_prep: {
+      format: "9:16 vertical, 35-55 seconds",
+      checks: [
+        "Hook lands in first 2 seconds",
+        "Captions match voiceover rhythm",
+        "Visual pacing supports every beat",
+      ],
+    },
+    render: {
+      preview: "Render preview ready for short-form review.",
+      export: "Export vertical final for TikTok, Reels, and Shorts.",
+    },
+  };
+}
+
+async function generatePlainTextFallbackPackage(
+  admin: SupabaseClient,
+  project: ProjectGenerationRow,
+) {
+  const idea = project.idea?.trim() || project.title?.trim() || "short-form video idea";
+  const trendContext = getTikTokTrendContext();
+  const creativeControls = describeCreativeControls(project.creative_controls);
+  const seriesContext = describeSeriesContext(project);
+
+  const fallbackPrompt = `Create a viral short-form content plan for this idea: ${idea}
+
+Trend context: ${trendContext}
+
+Creative controls:
+${creativeControls}
+
+${seriesContext}
+
+Return plain text only using this exact format:
+HOOK:
+one compelling opening line
+
+SCRIPT:
+a 35-55 second voiceover script
+
+BEATS:
+- beat one
+- beat two
+- beat three
+
+TITLES:
+- title one
+- title two
+
+HASHTAGS:
+- #tagone
+- #tagtwo`;
+
+  const result = await runAiJob(admin, {
+    userId: project.user_id,
+    jobType: "script",
+    prompt: fallbackPrompt,
+    text: {
+      systemPrompt:
+        "You are Hermiora AI. Return concise plain-text production notes for a short-form video. Do not return JSON. Follow the requested labels exactly.",
+    },
+    metadata: {
+      projectId: project.id,
+      seriesId: project.series_id ?? null,
+      fallbackMode: "plain_text_generation",
+    },
+  });
+
+  const text = result.outputText?.trim();
+  if (!text) {
+    throw new Error("The AI fallback returned no plain-text generation plan.");
+  }
+
+  return buildFallbackPackageFromText(project, text);
+}
+
 export async function generateViralVideoPackage(
   admin: SupabaseClient,
   project: ProjectGenerationRow,
@@ -274,28 +459,36 @@ ${seriesContext}
 
 Make it emotionally sharp, clear for a creator to record, and suitable for a production pipeline. Match the requested language, tone reference, art direction, captions, effects, and series continuity when they are provided.`;
 
-  const result = await runAiJob(admin, {
-    userId: project.user_id,
-    jobType: "script",
-    prompt,
-    text: {
-      model: aiConfig.openai.model,
-      parseJson: true,
-      schemaName: "hermiora_viral_generation",
-      jsonSchema: generationSchema,
-      systemPrompt:
-        "You are Hermiora AI, a senior short-form video strategist. Generate viral-style content that is specific, ethical, punchy, and optimized for TikTok/Reels/Shorts. Return only JSON matching the schema. Make the image_prompts step visually specific: each shot prompt must clearly reflect the requested art style, visual effects, and storytelling tone with premium composition, clean anatomy, and high-detail finish suitable for polished short-form content.",
-    },
-    metadata: {
-      projectId: project.id,
-      seriesId: project.series_id ?? null,
-    },
-  });
+  try {
+    const result = await runAiJob(admin, {
+      userId: project.user_id,
+      jobType: "script",
+      prompt,
+      text: {
+        model: aiConfig.openai.model,
+        parseJson: true,
+        schemaName: "hermiora_viral_generation",
+        jsonSchema: generationSchema,
+        systemPrompt:
+          "You are Hermiora AI, a senior short-form video strategist. Generate viral-style content that is specific, ethical, punchy, and optimized for TikTok/Reels/Shorts. Return only JSON matching the schema. Make the image_prompts step visually specific: each shot prompt must clearly reflect the requested art style, visual effects, and storytelling tone with premium composition, clean anatomy, and high-detail finish suitable for polished short-form content.",
+      },
+      metadata: {
+        projectId: project.id,
+        seriesId: project.series_id ?? null,
+      },
+    });
 
-  if (!result.outputJson) {
-    throw new Error("The AI router returned no structured generation payload.");
+    if (result.outputJson) {
+      return result.outputJson as ViralGeneration;
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (!/malformed json|The AI router returned no structured generation payload/i.test(message)) {
+      throw error;
+    }
   }
-  return result.outputJson as ViralGeneration;
+
+  return generatePlainTextFallbackPackage(admin, project);
 }
 
 export async function runRealProjectGeneration(
