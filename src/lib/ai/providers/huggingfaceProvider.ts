@@ -54,7 +54,8 @@ export const huggingfaceProvider: AiProvider = {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: request.text?.model || aiConfig.huggingface.chatModel,
+          // Never inherit an OpenAI model name into the Hugging Face fallback path.
+          model: aiConfig.huggingface.chatModel,
           messages: [
             request.text?.systemPrompt
               ? { role: "system", content: request.text.systemPrompt }
