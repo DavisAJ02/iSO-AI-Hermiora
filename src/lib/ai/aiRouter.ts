@@ -11,6 +11,7 @@ import { openAiProvider } from "@/lib/ai/providers/openaiProvider";
 import { replicateProvider } from "@/lib/ai/providers/replicateProvider";
 import { runwayProvider } from "@/lib/ai/providers/runwayProvider";
 import { huggingfaceProvider } from "@/lib/ai/providers/huggingfaceProvider";
+import { pexelsProvider } from "@/lib/ai/providers/pexelsProvider";
 import { getAiTimeoutMs } from "@/lib/ai/timeouts";
 
 /**
@@ -23,6 +24,7 @@ const providers: Record<AiProviderName, AiProvider> = {
   replicate: replicateProvider,
   runway: runwayProvider,
   huggingface: huggingfaceProvider,
+  pexels: pexelsProvider,
 };
 
 function getProviderChain(jobType: AiJobRequest["jobType"]): AiProviderName[] {
@@ -31,12 +33,26 @@ function getProviderChain(jobType: AiJobRequest["jobType"]): AiProviderName[] {
     case "viral_score":
       return ["openai", "huggingface"];
     case "image":
-      return ["replicate", "huggingface"];
+      return ["replicate", "huggingface", "pexels"];
     case "video":
-      return ["runway", "replicate", "huggingface"];
+      return ["runway", "replicate", "huggingface", "pexels"];
     default:
       return ["huggingface"];
   }
+}
+
+function getProviderTimeoutMs(
+  jobType: AiJobRequest["jobType"],
+  providerName: AiProviderName,
+  baseTimeoutMs: number,
+) {
+  if (providerName === "huggingface" && (jobType === "script" || jobType === "viral_score")) {
+    return Math.max(baseTimeoutMs, 45_000);
+  }
+  if (providerName === "pexels") {
+    return Math.min(baseTimeoutMs, 15_000);
+  }
+  return baseTimeoutMs;
 }
 
 export async function runAiJob(
@@ -45,7 +61,7 @@ export async function runAiJob(
 ): Promise<AiJobResult & { jobId: string }> {
   const jobId = await createAiJob(admin, request);
   const providerChain = getProviderChain(request.jobType);
-  const timeoutMs = getAiTimeoutMs(request.jobType);
+  const baseTimeoutMs = getAiTimeoutMs(request.jobType);
   const errors: string[] = [];
 
   for (const providerName of providerChain) {
@@ -62,7 +78,7 @@ export async function runAiJob(
       const providerResult = await provider.run({
         jobType: request.jobType,
         prompt: request.prompt,
-        timeoutMs,
+        timeoutMs: getProviderTimeoutMs(request.jobType, providerName, baseTimeoutMs),
         text: request.text,
         image: request.image,
         video: request.video,

@@ -1,7 +1,7 @@
 import { aiConfig } from "@/lib/ai/config";
 
 export type ProviderHealth = {
-  provider: "openai" | "replicate" | "runway" | "huggingface" | "elevenlabs" | "tiktok";
+  provider: "openai" | "replicate" | "runway" | "huggingface" | "pexels" | "elevenlabs" | "tiktok";
   configured: boolean;
   ok: boolean;
   message: string;
@@ -80,6 +80,22 @@ export async function checkHuggingFaceHealth(): Promise<ProviderHealth> {
   }
 
   return ok("huggingface", true, "Hugging Face API key is valid.");
+}
+
+export async function checkPexelsHealth(): Promise<ProviderHealth> {
+  const key = aiConfig.pexels.apiKey;
+  if (!key) return fail("pexels", false, "PEXELS_API_KEY is not configured.");
+
+  const res = await fetch("https://api.pexels.com/v1/search?query=studio&per_page=1", {
+    headers: { Authorization: key },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    return fail("pexels", true, `Pexels returned ${res.status}.`);
+  }
+
+  return ok("pexels", true, "Pexels API key is valid.");
 }
 
 export async function checkElevenLabsHealth(): Promise<ProviderHealth> {

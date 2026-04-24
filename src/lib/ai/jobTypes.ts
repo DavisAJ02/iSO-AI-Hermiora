@@ -5,7 +5,7 @@
 
 export type AiJobType = "script" | "viral_score" | "image" | "video";
 
-export type AiProviderName = "openai" | "replicate" | "runway" | "huggingface";
+export type AiProviderName = "openai" | "replicate" | "runway" | "huggingface" | "pexels";
 
 export type AiJobStatus = "pending" | "processing" | "done" | "failed";
 

@@ -4,6 +4,7 @@ import {
   checkElevenLabsHealth,
   checkHuggingFaceHealth,
   checkOpenAiHealth,
+  checkPexelsHealth,
   checkReplicateHealth,
   checkRunwayHealth,
   checkTikTokHealth,
@@ -37,6 +38,7 @@ export async function GET(req: Request) {
     checkReplicateHealth(),
     checkRunwayHealth(),
     checkHuggingFaceHealth(),
+    checkPexelsHealth(),
     checkElevenLabsHealth(),
     checkTikTokHealth(),
   ]);
@@ -44,7 +46,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     providers: results.map((result, index) => {
       if (result.status === "fulfilled") return result.value;
-      const provider = ["openai", "replicate", "runway", "huggingface", "elevenlabs", "tiktok"][index];
+      const provider = ["openai", "replicate", "runway", "huggingface", "pexels", "elevenlabs", "tiktok"][index];
       return {
         provider,
         configured: false,

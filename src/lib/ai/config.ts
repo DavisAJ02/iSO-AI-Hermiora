@@ -30,9 +30,12 @@ export const aiConfig = {
   huggingface: {
     apiKey: firstEnv("HUGGINGFACE_API_KEY", "HUGGINGFACE_API_TOKEN"),
     chatModel:
-      firstEnv("HUGGINGFACE_CHAT_MODEL") || "Qwen/Qwen2.5-7B-Instruct:featherless-ai",
+      firstEnv("HUGGINGFACE_CHAT_MODEL") || "katanemo/Arch-Router-1.5B:hf-inference",
     imageModel:
-      firstEnv("HUGGINGFACE_IMAGE_MODEL") || "stabilityai/stable-diffusion-3.5-large",
+      firstEnv("HUGGINGFACE_IMAGE_MODEL") || "black-forest-labs/FLUX.1-schnell",
     videoModel: firstEnv("HUGGINGFACE_VIDEO_MODEL") || "genmo/mochi-1-preview",
+  },
+  pexels: {
+    apiKey: firstEnv("PEXELS_API_KEY"),
   },
 };
