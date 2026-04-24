@@ -2,7 +2,10 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
   checkElevenLabsHealth,
+  checkHuggingFaceHealth,
   checkOpenAiHealth,
+  checkReplicateHealth,
+  checkRunwayHealth,
   checkTikTokHealth,
 } from "@/lib/ai/providerHealth";
 import { createClient } from "@/utils/supabase/server";
@@ -31,6 +34,9 @@ export async function GET(req: Request) {
 
   const results = await Promise.allSettled([
     checkOpenAiHealth(),
+    checkReplicateHealth(),
+    checkRunwayHealth(),
+    checkHuggingFaceHealth(),
     checkElevenLabsHealth(),
     checkTikTokHealth(),
   ]);
@@ -38,7 +44,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     providers: results.map((result, index) => {
       if (result.status === "fulfilled") return result.value;
-      const provider = ["openai", "elevenlabs", "tiktok"][index];
+      const provider = ["openai", "replicate", "runway", "huggingface", "elevenlabs", "tiktok"][index];
       return {
         provider,
         configured: false,

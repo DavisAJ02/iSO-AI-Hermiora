@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { runAiJob } from "@/lib/ai/aiRouter";
 import { getArtStylePreset } from "@/lib/ai/artStylePresets";
+import { aiConfig } from "@/lib/ai/config";
 import { saveProjectImages } from "@/lib/ai/openAiImages";
 import { saveProjectVoice } from "@/lib/ai/elevenLabsVoice";
 import { getTikTokTrendContext } from "@/lib/ai/providerHealth";
@@ -218,43 +220,6 @@ const generationSchema = {
   },
 } as const;
 
-function extractOutputText(response: unknown): string {
-  if (
-    response &&
-    typeof response === "object" &&
-    "output_text" in response &&
-    typeof response.output_text === "string"
-  ) {
-    return response.output_text;
-  }
-
-  const output = (response as { output?: { content?: { text?: string }[] }[] })?.output;
-  return (
-    output
-      ?.flatMap((item) => item.content ?? [])
-      .map((content) => content.text)
-      .filter((text): text is string => typeof text === "string")
-      .join("\n") ?? ""
-  );
-}
-
-function normalizeOpenAiError(status: number, bodyText: string) {
-  const compact = bodyText.replace(/\s+/g, " ").trim();
-  if (
-    status === 429 &&
-    /quota|billing details|insufficient_quota|max(imum)? monthly spend/i.test(compact)
-  ) {
-    return "OpenAI quota is exhausted for this API account or project. Add credits, raise the spend limit, or switch to a funded API project.";
-  }
-  if (status === 401) {
-    return "OpenAI rejected the API key. Verify the deployed OPENAI_API_KEY and project permissions.";
-  }
-  if (status === 403) {
-    return "OpenAI denied access for this request. Check project permissions, model access, and any IP restrictions.";
-  }
-  return `OpenAI generation failed (${status}): ${compact.slice(0, 240)}`;
-}
-
 function stepOutput(generation: ViralGeneration, step: PipelineStepId) {
   return generation[step];
 }
@@ -286,56 +251,51 @@ function describeSeriesContext(project: ProjectGenerationRow) {
     : "No series continuity context was provided.";
 }
 
-export async function generateViralVideoPackage(project: ProjectGenerationRow) {
-  const key = process.env.OPENAI_API_KEY?.trim();
-  if (!key) throw new Error("OPENAI_API_KEY is not configured.");
+export async function generateViralVideoPackage(
+  admin: SupabaseClient,
+  project: ProjectGenerationRow,
+) {
+  if (!aiConfig.openai.apiKey && !aiConfig.huggingface.apiKey) {
+    throw new Error("No script generation provider is configured.");
+  }
 
-  const model = process.env.OPENAI_GENERATION_MODEL?.trim() || "gpt-4.1-mini";
   const idea = project.idea?.trim() || project.title?.trim() || "short-form video idea";
   const trendContext = getTikTokTrendContext();
   const creativeControls = describeCreativeControls(project.creative_controls);
   const seriesContext = describeSeriesContext(project);
+  const prompt = `Create a 35-55 second vertical video package for this idea: ${idea}
 
-  const res = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
+Trend context: ${trendContext}
+
+Creative controls:
+${creativeControls}
+
+${seriesContext}
+
+Make it emotionally sharp, clear for a creator to record, and suitable for a production pipeline. Match the requested language, tone reference, art direction, captions, effects, and series continuity when they are provided.`;
+
+  const result = await runAiJob(admin, {
+    userId: project.user_id,
+    jobType: "script",
+    prompt,
+    text: {
+      model: aiConfig.openai.model,
+      parseJson: true,
+      schemaName: "hermiora_viral_generation",
+      jsonSchema: generationSchema,
+      systemPrompt:
+        "You are Hermiora AI, a senior short-form video strategist. Generate viral-style content that is specific, ethical, punchy, and optimized for TikTok/Reels/Shorts. Return only JSON matching the schema. Make the image_prompts step visually specific: each shot prompt must clearly reflect the requested art style, visual effects, and storytelling tone with premium composition, clean anatomy, and high-detail finish suitable for polished short-form content.",
     },
-    body: JSON.stringify({
-      model,
-      input: [
-        {
-          role: "system",
-          content:
-            "You are Hermiora AI, a senior short-form video strategist. Generate viral-style content that is specific, ethical, punchy, and optimized for TikTok/Reels/Shorts. Return only JSON matching the schema. Make the image_prompts step visually specific: each shot prompt must clearly reflect the requested art style, visual effects, and storytelling tone with premium composition, clean anatomy, and high-detail finish suitable for polished short-form content.",
-        },
-        {
-          role: "user",
-          content: `Create a 35-55 second vertical video package for this idea: ${idea}\n\nTrend context: ${trendContext}\n\nCreative controls:\n${creativeControls}\n\n${seriesContext}\n\nMake it emotionally sharp, clear for a creator to record, and suitable for a production pipeline. Match the requested language, tone reference, art direction, captions, effects, and series continuity when they are provided.`,
-        },
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "hermiora_viral_generation",
-          strict: true,
-          schema: generationSchema,
-        },
-      },
-    }),
-    cache: "no-store",
+    metadata: {
+      projectId: project.id,
+      seriesId: project.series_id ?? null,
+    },
   });
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(normalizeOpenAiError(res.status, text));
+  if (!result.outputJson) {
+    throw new Error("The AI router returned no structured generation payload.");
   }
-
-  const json = await res.json();
-  const outputText = extractOutputText(json);
-  if (!outputText) throw new Error("OpenAI response did not include output text.");
-  return JSON.parse(outputText) as ViralGeneration;
+  return result.outputJson as ViralGeneration;
 }
 
 export async function runRealProjectGeneration(
@@ -350,7 +310,7 @@ export async function runRealProjectGeneration(
     .eq("id", project.id);
 
   try {
-    const generation = await generateViralVideoPackage(project);
+    const generation = await generateViralVideoPackage(admin, project);
     const stepResults = await Promise.all(
       PIPELINE_STEPS.map((step) => {
         const baseOutput = stepOutput(generation, step.id);
@@ -373,7 +333,7 @@ export async function runRealProjectGeneration(
     const stepError = stepResults.find((result) => result.error)?.error;
     if (stepError) throw stepError;
 
-    if (process.env.OPENAI_API_KEY?.trim() && process.env.HERMIORA_IMAGE_GENERATION !== "off") {
+    if (process.env.HERMIORA_IMAGE_GENERATION !== "off") {
       try {
         await saveProjectImages(admin, {
           id: project.id,

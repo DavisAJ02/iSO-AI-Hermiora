@@ -1,5 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { runAiJob } from "@/lib/ai/aiRouter";
+import { aiConfig } from "@/lib/ai/config";
 import { getTikTokTrendContext } from "@/lib/ai/providerHealth";
 import { DEFAULT_CREATIVE_CONTROLS, normalizeCreativeControls } from "@/lib/projects/creativeControls";
 import { loadSeriesContinuityContext } from "@/lib/projects/seriesContinuity";
@@ -36,26 +38,6 @@ const suggestionSchema = {
   },
 } as const;
 
-function extractOutputText(response: unknown): string {
-  if (
-    response &&
-    typeof response === "object" &&
-    "output_text" in response &&
-    typeof response.output_text === "string"
-  ) {
-    return response.output_text;
-  }
-
-  const output = (response as { output?: { content?: { text?: string }[] }[] })?.output;
-  return (
-    output
-      ?.flatMap((item) => item.content ?? [])
-      .map((content) => content.text)
-      .filter((text): text is string => typeof text === "string")
-      .join("\n") ?? ""
-  );
-}
-
 export async function POST(req: Request) {
   const user = await getSignedInUser(req);
   if (!user) {
@@ -77,9 +59,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const key = process.env.OPENAI_API_KEY?.trim();
-  if (!key) {
-    return NextResponse.json({ error: "OPENAI_API_KEY is not configured." }, { status: 500 });
+  if (!aiConfig.openai.apiKey && !aiConfig.huggingface.apiKey) {
+    return NextResponse.json({ error: "No text suggestion provider is configured." }, { status: 500 });
   }
 
   const currentIdea = body.currentIdea?.trim() || "";
@@ -91,7 +72,6 @@ export async function POST(req: Request) {
     ? await loadSeriesContinuityContext(admin, user.id, seriesId)
     : null;
 
-  const model = process.env.OPENAI_GENERATION_MODEL?.trim() || "gpt-4.1-mini";
   const trendContext = getTikTokTrendContext();
 
   const systemPrompt =
@@ -112,49 +92,41 @@ export async function POST(req: Request) {
     .filter(Boolean)
     .join("\n\n");
 
-  const res = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      input: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
+  try {
+    const result = await runAiJob(admin, {
+      userId: user.id,
+      jobType: "script",
+      prompt: userPrompt,
       text: {
-        format: {
-          type: "json_schema",
-          name: "idea_suggestion",
-          strict: true,
-          schema: suggestionSchema,
-        },
+        model: aiConfig.openai.model,
+        parseJson: true,
+        schemaName: "idea_suggestion",
+        jsonSchema: suggestionSchema,
+        systemPrompt,
       },
-    }),
-    cache: "no-store",
-  });
+      metadata: {
+        type: "idea_suggestion",
+        seriesId: seriesId || null,
+      },
+    });
 
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => "");
+    const suggestion = result.outputJson as {
+      primaryIdea: string;
+      alternatives: string[];
+      reasoning: string;
+    } | undefined;
+
+    if (!suggestion?.primaryIdea) {
+      return NextResponse.json({ error: "No idea suggestion returned." }, { status: 502 });
+    }
+
+    return NextResponse.json({ suggestion });
+  } catch (error) {
     return NextResponse.json(
-      { error: `AI suggestion failed: ${errorText.slice(0, 240)}` },
+      {
+        error: error instanceof Error ? error.message : "AI suggestion failed.",
+      },
       { status: 502 },
     );
   }
-
-  const json = await res.json();
-  const outputText = extractOutputText(json);
-  if (!outputText) {
-    return NextResponse.json({ error: "No idea suggestion returned." }, { status: 502 });
-  }
-
-  const suggestion = JSON.parse(outputText) as {
-    primaryIdea: string;
-    alternatives: string[];
-    reasoning: string;
-  };
-
-  return NextResponse.json({ suggestion });
 }

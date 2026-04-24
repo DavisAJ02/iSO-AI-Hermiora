@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { aiConfig } from "@/lib/ai/config";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { titleFromIdea } from "@/lib/projects/projectMapping";
 import {
@@ -194,7 +195,7 @@ export async function POST(req: Request) {
     .update({ monthly_usage_count: used + 1 })
     .eq("id", user.id);
 
-  if (process.env.OPENAI_API_KEY && process.env.HERMIORA_REAL_GENERATION !== "off") {
+  if ((aiConfig.openai.apiKey || aiConfig.huggingface.apiKey) && process.env.HERMIORA_REAL_GENERATION !== "off") {
     try {
       await runRealProjectGeneration(admin, {
         ...project,

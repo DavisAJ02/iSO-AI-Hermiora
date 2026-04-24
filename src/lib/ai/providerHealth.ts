@@ -1,5 +1,7 @@
+import { aiConfig } from "@/lib/ai/config";
+
 export type ProviderHealth = {
-  provider: "openai" | "elevenlabs" | "tiktok";
+  provider: "openai" | "replicate" | "runway" | "huggingface" | "elevenlabs" | "tiktok";
   configured: boolean;
   ok: boolean;
   message: string;
@@ -14,7 +16,7 @@ function fail(provider: ProviderHealth["provider"], configured: boolean, message
 }
 
 export async function checkOpenAiHealth(): Promise<ProviderHealth> {
-  const key = process.env.OPENAI_API_KEY?.trim();
+  const key = aiConfig.openai.apiKey;
   if (!key) return fail("openai", false, "OPENAI_API_KEY is not configured.");
 
   const res = await fetch("https://api.openai.com/v1/models", {
@@ -27,6 +29,57 @@ export async function checkOpenAiHealth(): Promise<ProviderHealth> {
   }
 
   return ok("openai", true, "OpenAI API key is valid.");
+}
+
+export async function checkReplicateHealth(): Promise<ProviderHealth> {
+  const key = aiConfig.replicate.apiToken;
+  if (!key) return fail("replicate", false, "REPLICATE_API_TOKEN is not configured.");
+
+  const res = await fetch("https://api.replicate.com/v1/account", {
+    headers: { Authorization: `Bearer ${key}` },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    return fail("replicate", true, `Replicate returned ${res.status}.`);
+  }
+
+  return ok("replicate", true, "Replicate API token is valid.");
+}
+
+export async function checkRunwayHealth(): Promise<ProviderHealth> {
+  const key = aiConfig.runway.apiKey;
+  if (!key) return fail("runway", false, "RUNWAY_API_KEY is not configured.");
+
+  const res = await fetch("https://api.dev.runwayml.com/v1/tasks", {
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "X-Runway-Version": aiConfig.runway.apiVersion,
+    },
+    cache: "no-store",
+  });
+
+  if (!res.ok && res.status !== 405) {
+    return fail("runway", true, `Runway returned ${res.status}.`);
+  }
+
+  return ok("runway", true, "Runway API key is configured.");
+}
+
+export async function checkHuggingFaceHealth(): Promise<ProviderHealth> {
+  const key = aiConfig.huggingface.apiKey;
+  if (!key) return fail("huggingface", false, "HUGGINGFACE_API_KEY is not configured.");
+
+  const res = await fetch("https://router.huggingface.co/v1/models", {
+    headers: { Authorization: `Bearer ${key}` },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    return fail("huggingface", true, `Hugging Face returned ${res.status}.`);
+  }
+
+  return ok("huggingface", true, "Hugging Face API key is valid.");
 }
 
 export async function checkElevenLabsHealth(): Promise<ProviderHealth> {

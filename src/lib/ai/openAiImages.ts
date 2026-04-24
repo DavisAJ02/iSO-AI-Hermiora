@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { runAiJob } from "@/lib/ai/aiRouter";
 import { getArtStylePreset } from "@/lib/ai/artStylePresets";
 
 type ImagePromptOutput = {
@@ -31,6 +32,7 @@ type StoredImage = {
   storage_path: string;
   mime_type: string;
   prompt: string;
+  provider: string;
   motion_hint?: string;
 };
 
@@ -47,60 +49,22 @@ function slugify(value: string) {
     .slice(0, 60);
 }
 
-function normalizeOpenAiImageError(status: number, bodyText: string) {
-  const compact = bodyText.replace(/\s+/g, " ").trim();
-  if (
-    status === 429 &&
-    /quota|billing details|insufficient_quota|max(imum)? monthly spend/i.test(compact)
-  ) {
-    return "OpenAI image quota is exhausted for this API account or project.";
-  }
-  if (status === 401) {
-    return "OpenAI rejected the API key for image generation.";
-  }
-  return `OpenAI image generation failed (${status}): ${compact.slice(0, 240)}`;
-}
-
 function sizeFromAspectRatio(aspectRatio: string | undefined) {
   if (!aspectRatio) return "1024x1536";
   if (aspectRatio.includes("16:9")) return "1536x1024";
   return "1024x1536";
 }
 
-async function generateImageBuffer(prompt: string, size: string) {
-  const key = process.env.OPENAI_API_KEY?.trim();
-  if (!key) throw new Error("OPENAI_API_KEY is not configured.");
+async function resolveImageBuffer(outputUrl: string | null, outputBuffer?: Buffer) {
+  if (outputBuffer) return outputBuffer;
+  if (!outputUrl) throw new Error("Image provider returned no file output.");
 
-  const model = process.env.OPENAI_IMAGE_MODEL?.trim() || "gpt-image-1";
-  const quality = process.env.OPENAI_IMAGE_QUALITY?.trim() || "high";
-
-  const response = await fetch("https://api.openai.com/v1/images/generations", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      prompt,
-      size,
-      quality,
-      output_format: "png",
-    }),
-    cache: "no-store",
-  });
-
+  const response = await fetch(outputUrl, { cache: "no-store" });
   if (!response.ok) {
-    const textBody = await response.text().catch(() => "");
-    throw new Error(normalizeOpenAiImageError(response.status, textBody));
+    throw new Error(`Generated image could not be downloaded (${response.status}).`);
   }
 
-  const json = (await response.json()) as {
-    data?: { b64_json?: string | null }[];
-  };
-  const b64 = json.data?.[0]?.b64_json;
-  if (!b64) throw new Error("OpenAI image generation returned no image data.");
-  return Buffer.from(b64, "base64");
+  return Buffer.from(await response.arrayBuffer());
 }
 
 function buildStyledPrompt(basePrompt: string, artStyle: string | undefined, motionHint: string | undefined) {
@@ -153,15 +117,26 @@ export async function saveProjectImages(admin: SupabaseClient, project: ProjectI
     const filename = `${String(index + 1).padStart(2, "0")}-${slugify(label || project.title || "image") || "image"}.png`;
     const storagePath = `${project.user_id}/projects/${project.id}/${filename}`;
     const styledPrompt = buildStyledPrompt(prompt, imageOutput?.art_style, shot.motion_hint);
-
-    const imageBuffer = await generateImageBuffer(
-      negativePrompt ? `${styledPrompt}. Negative prompt: ${negativePrompt}` : styledPrompt,
-      size,
-    );
+    const generation = await runAiJob(admin, {
+      userId: project.user_id,
+      jobType: "image",
+      prompt: styledPrompt,
+      image: {
+        aspectRatio: imageOutput?.aspect_ratio,
+        negativePrompt,
+        size,
+      },
+      metadata: {
+        projectId: project.id,
+        shotLabel: label,
+      },
+    });
+    const imageBuffer = await resolveImageBuffer(generation.outputUrl, generation.outputBuffer);
+    const mimeType = generation.mimeType || "image/png";
     const { error: uploadError } = await admin.storage
       .from("images")
       .upload(storagePath, imageBuffer, {
-        contentType: "image/png",
+        contentType: mimeType,
         upsert: true,
       });
 
@@ -170,15 +145,16 @@ export async function saveProjectImages(admin: SupabaseClient, project: ProjectI
     generatedImages.push({
       label,
       storage_path: storagePath,
-      mime_type: "image/png",
+      mime_type: mimeType,
       prompt: styledPrompt,
+      provider: generation.providerUsed,
       motion_hint: shot.motion_hint?.trim() || undefined,
     });
   }
 
   const nextOutput = {
     ...imageOutput,
-    quality: process.env.OPENAI_IMAGE_QUALITY?.trim() || "high",
+    quality: "provider-managed",
     negative_prompt: negativePrompt || imageOutput?.negative_prompt,
     generated_images: generatedImages,
   };

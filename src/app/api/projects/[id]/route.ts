@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { aiConfig } from "@/lib/ai/config";
 import {
   ensureProjectGenerationOutputs,
   syncProjectGeneration,
@@ -241,6 +242,12 @@ export async function PATCH(
       return NextResponse.json(
         { error: "Project needs an idea or title before AI generation." },
         { status: 409 },
+      );
+    }
+    if (!aiConfig.openai.apiKey && !aiConfig.huggingface.apiKey) {
+      return NextResponse.json(
+        { error: "No script generation provider is configured." },
+        { status: 500 },
       );
     }
     try {
